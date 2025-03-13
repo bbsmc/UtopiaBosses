@@ -1,0 +1,10 @@
+{
+  "entrypoints": {
+    "main": [
+      "lt.utopiabosses.Utopiabosses"
+    ],
+    "client": [
+      "lt.utopiabosses.client.UtopiabossesClient"
+    ]
+  }
+} 

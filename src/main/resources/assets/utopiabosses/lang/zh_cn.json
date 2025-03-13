@@ -1,0 +1,27 @@
+{
+  "itemGroup.utopiabosses.item_group": "乌托邦",
+  
+  "item.utopiabosses.sunflower_helmet": "向日葵头盔",
+  "item.utopiabosses.sunflower_chestplate": "向日葵胸甲",
+  "item.utopiabosses.sunflower_leggings": "向日葵护腿",
+  "item.utopiabosses.sunflower_boots": "向日葵靴子",
+  
+  "item.utopiabosses.sunflower_shovel": "向日葵铲",
+  "item.utopiabosses.sunflower_axe": "向日葵斧",
+  "item.utopiabosses.sunflower_gatling": "向日葵加特林",
+  "item.utopiabosses.sunflower_hoe": "向日葵锄",
+  "item.utopiabosses.sunflower_pickaxe": "向日葵镐",
+  "item.utopiabosses.sunflower_sword": "向日葵剑",
+  "item.utopiabosses.sunflower_shield": "向日葵盾",
+  
+  "item.utopiabosses.sunflower_boss_spawn_egg": "向日葵BOSS生成蛋",
+  "entity.utopiabosses.sunflower_boss": "向日葵BOSS",
+  "entity.utopiabosses.sunflower_seed": "向日葵种子",
+
+  "item.utopiabosses.natural_essence": "自然精华",
+  "item.utopiabosses.light_seed_crystal": "光籽结晶",
+  "item.utopiabosses.sunflower_seed": "葵花籽",
+  "item.utopiabosses.cooked_sunflower_seed": "熟葵花籽",
+  "item.utopiabosses.sunflower_natural_essence": "向日葵自然精华",
+  "block.utopiabosses.nature_altar": "自然祭坛"
+}

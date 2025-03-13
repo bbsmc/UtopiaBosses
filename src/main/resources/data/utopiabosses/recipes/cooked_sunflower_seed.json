@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": {
+    "item": "utopiabosses:sunflower_seed"
+  },
+  "result": "utopiabosses:cooked_sunflower_seed",
+  "experience": 0.35,
+  "cookingtime": 200
+} 

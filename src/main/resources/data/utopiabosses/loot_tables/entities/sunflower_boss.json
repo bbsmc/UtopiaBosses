@@ -1,0 +1,47 @@
+{
+  "type": "minecraft:entity",
+  "pools": [
+    {
+      "rolls": {
+        "min": 2,
+        "max": 3
+      },
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "utopiabosses:light_seed_crystal"
+        }
+      ]
+    },
+    {
+      "rolls": {
+        "min": 20,
+        "max": 30
+      },
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "utopiabosses:sunflower_seed"
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:sunflower",
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "min": 2,
+                "max": 5
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+} 

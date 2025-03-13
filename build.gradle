@@ -1,0 +1,89 @@
+plugins {
+    id 'fabric-loom' version '1.9-SNAPSHOT'
+    id 'java'
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+loom {
+    accessWidenerPath = file("src/main/resources/accessWidener.aw")
+}
+
+repositories {
+    maven { url 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/' }
+    maven {
+        name = 'GeckoLib'
+        url 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+        content {
+            includeGroupByRegex("software\\.bernie.*")
+            includeGroup("com.eliotlash.mclib")
+        }
+    }
+}
+
+dependencies {
+    // To change the versions see the gradle.properties file
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+//    mappings loom.officialMojangMappings()
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    implementation("com.eliotlash.mclib:mclib:${mclib_version}")
+    include("com.eliotlash.mclib:mclib:${mclib_version}")
+
+    // 恢复GeckoLib，但只用于生物模型和动画
+    modImplementation("software.bernie.geckolib:geckolib-fabric-${project.minecraft_version}:${project.geckolib_version}")
+    implementation("com.eliotlash.mclib:mclib:20")
+}
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "minecraft_version", project.minecraft_version
+    inputs.property "loader_version", project.loader_version
+    filteringCharset "UTF-8"
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version,
+                "minecraft_version": project.minecraft_version,
+                "loader_version": project.loader_version
+    }
+}
+
+def targetJavaVersion = 17
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = "UTF-8"
+    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
+        it.options.release.set(targetJavaVersion)
+    }
+}
+
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+    if (JavaVersion.current() < javaVersion) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+    withSourcesJar()
+}
+
+jar {
+    from("LICENSE") {
+        rename { "${it}_${project.archivesBaseName}" }
+    }
+}
+// 添加复制任务，将构建好的JAR文件复制到Minecraft的mods目录
+task copyJarToMods(type: Copy, dependsOn: remapJar) {
+    from("${buildDir}/libs/${archivesBaseName}-${version}.jar")
+    into("D:/客户端/MC/.minecraft/versions/1.20.1-Fabric 0.16.10/mods/")
+    doLast {
+        println "已复制 ${archivesBaseName}-${version}.jar 到Minecraft的mods目录"
+    }
+}
+
+// 让build任务完成后自动执行复制任务
+build.finalizedBy(copyJarToMods)

@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "SSS",
+    "SES",
+    "SSS"
+  ],
+  "key": {
+    "S": {
+      "item": "minecraft:sunflower"
+    },
+    "E": {
+      "item": "utopiabosses:natural_essence"
+    }
+  },
+  "result": {
+    "item": "utopiabosses:sunflower_natural_essence",
+    "count": 1
+  }
+} 

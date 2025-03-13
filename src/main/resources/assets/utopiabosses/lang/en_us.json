@@ -1,0 +1,28 @@
+{
+  "itemGroup.utopiabosses.item_group": "Utopia Bosses",
+  
+  "item.utopiabosses.sunflower_helmet": "Sunflower Helmet",
+  "item.utopiabosses.sunflower_chestplate": "Sunflower Chestplate",
+  "item.utopiabosses.sunflower_leggings": "Sunflower Leggings",
+  "item.utopiabosses.sunflower_boots": "Sunflower Boots",
+  
+  "item.utopiabosses.sunflower_shovel": "Sunflower Shovel",
+  "item.utopiabosses.sunflower_axe": "Sunflower Axe",
+  "item.utopiabosses.sunflower_gatling": "Sunflower Gatling",
+  "item.utopiabosses.sunflower_hoe": "Sunflower Hoe",
+  "item.utopiabosses.sunflower_pickaxe": "Sunflower Pickaxe",
+  "item.utopiabosses.sunflower_sword": "Sunflower Sword",
+  "item.utopiabosses.sunflower_shield": "Sunflower Shield",
+  
+  "item.utopiabosses.sunflower_boss_spawn_egg": "Sunflower Boss Spawn Egg",
+  "entity.utopiabosses.sunflower_boss": "Sunflower Boss",
+  "entity.utopiabosses.sunflower_seed": "Sunflower Seed",
+  
+  "item.utopiabosses.natural_essence": "Natural Essence",
+  "item.utopiabosses.light_seed_crystal": "Light Seed Crystal",
+  "item.utopiabosses.sunflower_seed": "Sunflower Seed",
+  "item.utopiabosses.cooked_sunflower_seed": "Cooked Sunflower Seed",
+  "item.utopiabosses.sunflower_natural_essence": "Sunflower Natural Essence",
+  "block.utopiabosses.nature_altar": "自然祭坛"
+
+} 

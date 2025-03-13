@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "utopiabosses",
+  "version": "${version}",
+  "name": "Utopia Bosses",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/utopiabosses/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "lt.utopiabosses.UtopiabossesClient"
+    ],
+    "main": [
+      "lt.utopiabosses.Utopiabosses"
+    ]
+  },
+  "mixins": [
+    "utopiabosses.mixins.json",
+    {
+      "config": "utopiabosses.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
