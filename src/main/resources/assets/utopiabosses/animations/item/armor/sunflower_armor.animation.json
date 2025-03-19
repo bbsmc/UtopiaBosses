@@ -1,26 +1,34 @@
 {
 	"format_version": "1.8.0",
 	"animations": {
-		"toudonghua": {
-			"loop": true,
-			"animation_length": 2,
-			"bones": {
-				"huaban": {
-					"rotation": {
-						"0.0": [0, 0, 0],
-						"2.0": [0, 360, 0]
-					}
-				}
-			}
-		},
 		"xiongdonghua": {
 			"loop": true,
 			"animation_length": 2,
 			"bones": {
 				"huaban2": {
 					"rotation": {
-						"0.0": [0, 0, 0],
-						"2.0": [0, 360, 0]
+						"0.0": {
+							"vector": [0, 0, 0]
+						},
+						"2.0": {
+							"vector": [0, 0, 360]
+						}
+					}
+				}
+			}
+		},
+		"toudonghua": {
+			"loop": true,
+			"animation_length": 2,
+			"bones": {
+				"huaban": {
+					"rotation": {
+						"0.0": {
+							"vector": [0, 0, 0]
+						},
+						"2.0": {
+							"vector": [0, 0, 360]
+						}
 					}
 				}
 			}
