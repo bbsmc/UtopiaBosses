@@ -13,6 +13,7 @@ import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
+import net.minecraft.util.Arm;
 import net.minecraft.util.Hand;
 import net.minecraft.util.TypedActionResult;
 import net.minecraft.util.UseAction;
@@ -24,6 +25,10 @@ import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
 import software.bernie.geckolib.animatable.client.RenderProvider;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
+import software.bernie.geckolib.core.animation.Animation;
+import software.bernie.geckolib.core.animation.AnimationController;
+import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.function.Consumer;
@@ -35,9 +40,15 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
 
     // 发射冷却时间，单位tick，控制射速
-    // 1000发/分钟 = 16.67发/秒 = 每0.06秒1发 = 每1.2tick发射一次
-    // Minecraft一秒20tick，所以设置为1或2
-    private static final int FIRE_COOLDOWN = 1;
+    // 10发/秒 = 每0.1秒1发 = 每2tick发射一次
+    // Minecraft一秒20tick
+    private static final int FIRE_COOLDOWN = 2;
+
+    // 将静态变量改为常量，用于NBT标签
+    private static final String USING_KEY = "IsBeingUsed";
+
+    // 添加静态字段来跟踪任何加特林的使用状态
+    private static boolean anyItemInUse = false;
 
     public SunflowerGatlingItem(Settings settings) {
         super(settings);
@@ -67,7 +78,14 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllerRegistrar) {
-
+        controllerRegistrar.add(new AnimationController<>(this, "gatling_controller", 0, event -> {
+            if (anyItemInUse) {
+                event.getController().setAnimation(RawAnimation.begin().then("fire", Animation.LoopType.LOOP));
+            } else {
+               event.getController().setAnimation(RawAnimation.begin().then("idle", Animation.LoopType.LOOP));
+            }
+            return PlayState.CONTINUE;
+        }));
     }
 
     @Override
@@ -77,7 +95,7 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
 
     @Override
     public UseAction getUseAction(ItemStack stack) {
-        return UseAction.BOW; // 使用BOW动作
+        return UseAction.NONE; // 使用弩的动作，双手握住但姿势更自然
     }
 
     @Override
@@ -103,13 +121,19 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
     @Override
     public void usageTick(World world, LivingEntity user, ItemStack stack, int remainingUseTicks) {
         super.usageTick(world, user, stack, remainingUseTicks);
-
+        
+        // 设置全局标志
+        anyItemInUse = true;
+        
+        // 在NBT中设置使用状态
+        NbtCompound nbt = stack.getOrCreateNbt();
+        nbt.putBoolean(USING_KEY, true);
+        
         if (world.isClient) {
             return; // 客户端不处理射击逻辑
         }
 
         // 获取或初始化冷却时间
-        NbtCompound nbt = stack.getOrCreateNbt();
         int cooldown = nbt.getInt("Cooldown");
 
         // 检查冷却时间和耐久度
@@ -131,13 +155,21 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
     @Override
     public void inventoryTick(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
         super.inventoryTick(stack, world, entity, slot, selected);
-
-        // 在物品栏内也减少冷却时间
-        NbtCompound nbt = stack.getOrCreateNbt();
-        int cooldown = nbt.getInt("Cooldown");
-        if (cooldown > 0) {
-            nbt.putInt("Cooldown", cooldown - 1);
+        
+        // 检查实体是否正在使用这个物品
+        boolean stillUsing = false;
+        if (entity instanceof LivingEntity livingEntity && 
+                livingEntity.isUsingItem() && 
+                livingEntity.getActiveItem() == stack) {
+            stillUsing = true;
         }
+        
+        // 只有不再使用时才重置标志
+        if (!stillUsing) {
+            anyItemInUse = false;
+        }
+        
+        // 冷却时间逻辑保持不变...
     }
 
     // 发射种子弹
@@ -159,14 +191,41 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
         double motionX = -MathHelper.sin(yawRadians) * MathHelper.cos(pitchRadians);
         double motionY = -MathHelper.sin(pitchRadians);
         double motionZ = MathHelper.cos(yawRadians) * MathHelper.cos(pitchRadians);
-
-        // 设置种子的位置 - 从玩家眼睛位置发射
+        
+        // 设置种子的位置 - 从枪口位置发射
         Vec3d eyePos = user.getEyePos();
-        // 调整发射位置，使其看起来像从武器前端发射
         Vec3d direction = new Vec3d(motionX, motionY, motionZ).normalize();
-        Vec3d adjustedPos = eyePos.add(direction.multiply(1.0)); // 向前移动1格
-
-        seedEntity.setPosition(adjustedPos);
+        
+        // 调整发射位置，使其看起来像从武器枪口发射
+        // 向前移动1.2格，向下移动0.3格，向右/左移动0.3格（根据主手/副手）
+        Vec3d rightVector = new Vec3d(
+            MathHelper.cos(yawRadians), 
+            0, 
+            MathHelper.sin(yawRadians)
+        ).normalize();
+        
+        // 判断使用的是主手还是副手，相应调整水平偏移方向
+        boolean isMainHand = user.getActiveHand() == Hand.MAIN_HAND;
+        // 如果是左手模式的玩家，需要反转
+        boolean isLeftHanded = user instanceof PlayerEntity && ((PlayerEntity)user).getMainArm() == Arm.LEFT;
+        
+        // 确定最终的水平偏移方向
+        float horizontalOffset = 0.35f; // 减少水平偏移
+        if (isLeftHanded) {
+            // 左撇子玩家
+            horizontalOffset = isMainHand ? horizontalOffset : -horizontalOffset;
+        } else {
+            // 右撇子玩家
+            horizontalOffset = isMainHand ? -horizontalOffset : horizontalOffset;
+        }
+        
+        // 计算最终的枪口位置
+        Vec3d muzzlePos = eyePos
+            .add(direction.multiply(1.3)) // 减少向前偏移
+            .add(new Vec3d(0, -0.3, 0))   // 减少向下偏移
+            .add(rightVector.multiply(horizontalOffset)); // 更适中的水平偏移
+            
+        seedEntity.setPosition(muzzlePos);
 
         // 设置种子的速度
         float velocity = 3.0f; // 速度因子，调整为合适的值
@@ -174,10 +233,9 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
 
         // 设置种子不追踪目标（直线发射）
         seedEntity.setHomingTarget(null);
-
-        // 设置伤害值
-        // 由于SunflowerSeedEntity内部写了固定的伤害值8.0f，可能需要修改该类
-        // 或者在此处设置额外数据标记较低的伤害
+        
+        // 设置种子的伤害值为0.5
+        seedEntity.setDamage(0.5f);
 
         // 将种子添加到世界
         world.spawnEntity(seedEntity);

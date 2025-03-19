@@ -13,7 +13,7 @@ public class SunflowerArmorRenderer extends GeoArmorRenderer<SunflowerArmorItem>
     
     public SunflowerArmorRenderer() {
         super(new DefaultedItemGeoModel<>(MODEL_ID));
-        addRenderLayer(new AutoGlowingGeoLayer<>(this));
+        // addRenderLayer(new AutoGlowingGeoLayer<>(this));
         Utopiabosses.LOGGER.info("ArmorRenderer初始化成功，使用模型: {}", MODEL_ID);
     }
 

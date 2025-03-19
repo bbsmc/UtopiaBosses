@@ -1,5 +1,6 @@
 package lt.utopiabosses.entity;
 
+import lt.utopiabosses.registry.ItemRegistry;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -22,6 +23,8 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Vec3d;
 
 public class SunflowerSeedEntity extends ThrownItemEntity {
+
+    float damage = 8f;
     
     // 绿色粒子的颜色值
     private static final Vector3f GREEN_COLOR = new Vector3f(0.2f, 0.8f, 0.1f);
@@ -47,7 +50,7 @@ public class SunflowerSeedEntity extends ThrownItemEntity {
 
     @Override
     protected Item getDefaultItem() {
-        return Items.WHEAT_SEEDS;
+        return ItemRegistry.SUNFLOWER_SEED;
     }
     
     @Override
@@ -69,27 +72,6 @@ public class SunflowerSeedEntity extends ThrownItemEntity {
             // 应用新速度
             this.setVelocity(newDirection.x * speed, newDirection.y * speed, newDirection.z * speed);
         }
-        
-        // 在客户端生成粒子效果
-        if (this.getWorld().isClient) {
-            // 绿色尘埃粒子
-            this.getWorld().addParticle(
-                new DustParticleEffect(GREEN_COLOR, 1.0F),
-                this.getX(), this.getY(), this.getZ(),
-                0, 0, 0
-            );
-            
-            // 添加一些叶子粒子效果增强视觉效果
-            if (this.random.nextInt(3) == 0) {
-                this.getWorld().addParticle(
-                    ParticleTypes.COMPOSTER,
-                    this.getX(), this.getY(), this.getZ(),
-                    this.random.nextGaussian() * 0.05,
-                    this.random.nextGaussian() * 0.05,
-                    this.random.nextGaussian() * 0.05
-                );
-            }
-        }
     }
 
     @Override
@@ -99,7 +81,7 @@ public class SunflowerSeedEntity extends ThrownItemEntity {
         Entity entity = entityHitResult.getEntity();
         if (entity instanceof LivingEntity) {
             // 造成4颗心伤害
-            entity.damage(this.getDamageSources().mobProjectile(this, (LivingEntity)this.getOwner()), 8.0f);
+            entity.damage(this.getDamageSources().mobProjectile(this, (LivingEntity)this.getOwner()), damage);
             
             // 如果是玩家，添加减速效果
             if (entity instanceof PlayerEntity) {
@@ -131,27 +113,13 @@ public class SunflowerSeedEntity extends ThrownItemEntity {
             entity.velocityModified = true;
         }
         
-        // 根据是否为技能攻击决定效果
+        // 删除粒子效果代码，但保留音效
         if (!this.getWorld().isClient()) {
             if (isSkillAttack) {
-                // 技能攻击使用爆炸效果
-                ((ServerWorld)this.getWorld()).spawnParticles(
-                    ParticleTypes.EXPLOSION, 
-                    this.getX(), this.getY(), this.getZ(),
-                    8, 0.2, 0.2, 0.2, 0.1
-                );
-                
                 // 播放爆炸音效
                 this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
                     SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.BLOCKS, 0.3f, 0.8f);
             } else {
-                // 普通攻击使用更柔和的效果
-                ((ServerWorld)this.getWorld()).spawnParticles(
-                    ParticleTypes.COMPOSTER, 
-                    this.getX(), this.getY(), this.getZ(),
-                    12, 0.3, 0.3, 0.3, 0.1
-                );
-                
                 // 播放柔和音效
                 this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
                     SoundEvents.ENTITY_SLIME_ATTACK, SoundCategory.BLOCKS, 0.5f, 1.0f);
@@ -166,41 +134,14 @@ public class SunflowerSeedEntity extends ThrownItemEntity {
     protected void onCollision(HitResult hitResult) {
         super.onCollision(hitResult);
         if (!this.getWorld().isClient) {
-            // 碰撞时生成更多粒子效果
-            this.getWorld().sendEntityStatus(this, (byte)3);
+            // 删除粒子效果代码
             this.discard();
         }
     }
     
     @Override
     public void handleStatus(byte status) {
-        if (status == 3) {
-            // 减少碰撞时的粒子效果数量和范围
-            for (int i = 0; i < 6; ++i) { // 从12减少到6
-                this.getWorld().addParticle(
-                    new DustParticleEffect(GREEN_COLOR, 1.0F),
-                    this.getX() + this.random.nextGaussian() * 0.1, // 减小范围
-                    this.getY() + this.random.nextGaussian() * 0.1,
-                    this.getZ() + this.random.nextGaussian() * 0.1,
-                    this.random.nextGaussian() * 0.05, // 减小速度
-                    this.random.nextGaussian() * 0.05,
-                    this.random.nextGaussian() * 0.05
-                );
-                
-                // 添加一些叶子粒子
-                if (i % 2 == 0) {
-                    this.getWorld().addParticle(
-                        ParticleTypes.COMPOSTER,
-                        this.getX() + this.random.nextGaussian() * 0.1,
-                        this.getY() + this.random.nextGaussian() * 0.1,
-                        this.getZ() + this.random.nextGaussian() * 0.1,
-                        this.random.nextGaussian() * 0.05,
-                        this.random.nextGaussian() * 0.05,
-                        this.random.nextGaussian() * 0.05
-                    );
-                }
-            }
-        }
+        // 删除所有粒子效果代码
     }
 
     public void setHomingTarget(LivingEntity target) {
@@ -211,4 +152,12 @@ public class SunflowerSeedEntity extends ThrownItemEntity {
     public void setSkillAttack(boolean isSkill) {
         this.isSkillAttack = isSkill;
     }
-} 
+
+    public float getDamage() {
+        return damage;
+    }
+
+    public void setDamage(float damage) {
+        this.damage = damage;
+    }
+}

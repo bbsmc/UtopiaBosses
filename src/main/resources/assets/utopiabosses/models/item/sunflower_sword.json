@@ -104,6 +104,6 @@
     }
   },
   "textures": {
-    "particle": "item/ub_sword"
+    "particle": "item/sunflower_sword"
   }
 }
