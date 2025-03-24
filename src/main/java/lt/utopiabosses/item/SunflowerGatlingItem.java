@@ -235,7 +235,7 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
         seedEntity.setHomingTarget(null);
         
         // 设置种子的伤害值为0.5
-        seedEntity.setDamage(0.5f);
+        seedEntity.setDamage(2f);
 
         // 将种子添加到世界
         world.spawnEntity(seedEntity);

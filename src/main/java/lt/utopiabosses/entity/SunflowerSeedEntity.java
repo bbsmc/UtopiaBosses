@@ -89,19 +89,21 @@ public class SunflowerSeedEntity extends ThrownItemEntity {
                     new StatusEffectInstance(StatusEffects.SLOWNESS, 60, 1));
             }
             
-            // 添加向后击退效果 - 让玩家向自己的后方击退
-            float knockbackStrength = isSkillAttack ? 0.01f : 1f; // 降低技能攻击击退，提高普通攻击击退
+            // 添加击退效果 - 让实体朝向攻击者面向的方向击退
+            float knockbackStrength = 0.2f; // 统一为轻微击退（约一格距离）
             
-            // 计算击退方向 - 使用玩家面向的反方向作为"后方"
+            // 计算击退方向 - 使用攻击者面向的方向
             Vec3d knockbackDir;
-            if (entity instanceof PlayerEntity) {
-                // 获取玩家面向的方向并取反 - Minecraft中0度朝南(+Z)，90度朝西(-X)
-                float yaw = entity.getYaw() * 0.017453292F; // 转换为弧度
-                // 玩家面向的方向是(-sin(yaw), 0, cos(yaw))，所以后方是(sin(yaw), 0, -cos(yaw))
-                knockbackDir = new Vec3d(Math.sin(yaw), 0, -Math.cos(yaw));
+            Entity owner = this.getOwner();
+            
+            if (owner instanceof LivingEntity) {
+                // 获取攻击者面向的方向 - Minecraft中0度朝南(+Z)，90度朝西(-X)
+                float yaw = owner.getYaw() * 0.017453292F; // 转换为弧度
+                // 攻击者面向的方向向量
+                knockbackDir = new Vec3d(-Math.sin(yaw), 0, Math.cos(yaw));
             } else {
-                // 对于非玩家实体，使用种子飞行方向的反方向作为后备
-                knockbackDir = this.getVelocity().normalize().negate();
+                // 如果没有所有者，使用种子飞行方向
+                knockbackDir = this.getVelocity().normalize();
             }
             
             // 应用击退

@@ -115,7 +115,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private static final int SEED_BARRAGE_DURATION = 50; // 例如：种子弹幕动画为2.5秒
     private static final int SUNBEAM_DURATION = 160; // 例如：阳光射线动画为8秒
     private static final int PETAL_STORM_DURATION = 80; // 例如：花瓣风暴动画为4秒
-    private static final int KUWEI_STORM_DURATION = 147; // 例如：花瓣风暴动画为4秒
+    private static final int KUWEI_STORM_DURATION = 147; // 例如：死亡动画为4秒
 
     // 1. 添加数据追踪器声明 - 放在类顶部变量声明区域
     private static final TrackedData<Byte> ANIMATION_STATE = DataTracker.registerData(SunflowerBossEntity.class, TrackedDataHandlerRegistry.BYTE);

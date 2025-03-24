@@ -46,6 +46,12 @@ public class ItemRegistry {
     public static final BlockItem NATURE_ALTAR = registerItem("nature_altar",
             new BlockItem(BlockRegistry.NATURE_ALTAR, new FabricItemSettings()));
 
+    // 太阳
+    public static final BlockItem SUN_ITEM = registerItem("sun",
+            new BlockItem(BlockRegistry.SUN, new FabricItemSettings()));
+
+
+
     public static <I extends Item> I registerItem(String name, I item) {
         return Registry.register(Registries.ITEM, new Identifier(Utopiabosses.MOD_ID, name), item);
     }
@@ -101,6 +107,7 @@ public class ItemRegistry {
             content.add(SUNFLOWER_SWORD);
             content.add(SUNFLOWER_SHIELD);
             content.add(NATURE_ALTAR);
+            content.add(SUN_ITEM);
             content.add(NATURAL_ESSENCE);
             content.add(LIGHT_SEED_CRYSTAL);
             content.add(SUNFLOWER_SEED);
