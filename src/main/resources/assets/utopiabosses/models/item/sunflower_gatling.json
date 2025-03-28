@@ -1,9 +1,6 @@
 {
   "credit": "Made with Blockbench",
   "parent": "builtin/entity",
-  "textures": {
-    "particle": "item/texture"
-  },
   "texture_size": [
     128,
     128
@@ -11,14 +8,14 @@
   "display": {
     "thirdperson_righthand": {
       "rotation": [
-        90,
+        3,
         0,
         0
       ],
       "translation": [
-        0,
-        9,
-        0
+        0.75,
+        -8.25,
+        -8.5
       ],
       "scale": [
         0.8,
@@ -28,14 +25,14 @@
     },
     "thirdperson_lefthand": {
       "rotation": [
-        90,
+        3,
         0,
         0
       ],
       "translation": [
-        0,
-        9,
-        0
+        -0.75,
+        -8.25,
+        -8.5
       ],
       "scale": [
         0.8,
@@ -113,5 +110,8 @@
         0.4
       ]
     }
+  },
+  "textures": {
+    "particle": "item/sunflower_gatling"
   }
 }

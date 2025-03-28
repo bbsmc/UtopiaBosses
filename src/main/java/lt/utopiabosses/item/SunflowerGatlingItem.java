@@ -2,6 +2,7 @@ package lt.utopiabosses.item;
 
 import lt.utopiabosses.client.renderer.item.SunflowerGatlingRenderer;
 import lt.utopiabosses.entity.SunflowerSeedEntity;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.item.BuiltinModelItemRenderer;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
@@ -30,6 +31,10 @@ import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -49,11 +54,13 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
 
     // 添加静态字段来跟踪任何加特林的使用状态
     private static boolean anyItemInUse = false;
+    
+    // 添加静态KeyBinding用于检测使用键
+    private static KeyBinding fireKeyBinding;
 
     public SunflowerGatlingItem(Settings settings) {
         super(settings);
         SingletonGeoAnimatable.registerSyncedAnimatable(this);
-
     }
 
     @Override
@@ -81,9 +88,10 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
         controllerRegistrar.add(new AnimationController<>(this, "gatling_controller", 0, event -> {
             if (anyItemInUse) {
                 event.getController().setAnimation(RawAnimation.begin().then("fire", Animation.LoopType.LOOP));
-            } else {
-               event.getController().setAnimation(RawAnimation.begin().then("idle", Animation.LoopType.LOOP));
-            }
+            } 
+            // else {
+            //    event.getController().setAnimation(RawAnimation.begin().then("idle", Animation.LoopType.LOOP));
+            // }
             return PlayState.CONTINUE;
         }));
     }
@@ -95,55 +103,53 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
 
     @Override
     public UseAction getUseAction(ItemStack stack) {
-        return UseAction.NONE; // 使用弩的动作，双手握住但姿势更自然
+        // 直接返回NONE，不使用任何动作，避免视角下移
+        return UseAction.NONE;
     }
 
     @Override
     public int getMaxUseTime(ItemStack stack) {
-        return 72000; // 与弓一样的最大使用时间
+        return 72000;
     }
 
     @Override
     public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
         ItemStack stack = user.getStackInHand(hand);
 
-        // 开始使用（持续射击）
+        // 使用原生的物品使用系统，但不会导致视角下移
         user.setCurrentHand(hand);
+        
+        // 初始化冷却时间
+        if (!stack.hasNbt() || !stack.getNbt().contains("Cooldown")) {
+            stack.getOrCreateNbt().putInt("Cooldown", 0);
+        }
+        
         return TypedActionResult.consume(stack);
     }
 
     @Override
-    public void onItemEntityDestroyed(ItemEntity entity) {
-        // 当物品实体被销毁时的处理，例如掉入岩浆
-        super.onItemEntityDestroyed(entity);
-    }
-
-    @Override
     public void usageTick(World world, LivingEntity user, ItemStack stack, int remainingUseTicks) {
-        super.usageTick(world, user, stack, remainingUseTicks);
+        // 这个方法只有在玩家真正按住右键时才会调用
         
-        // 设置全局标志
+        // 设置全局动画标志
         anyItemInUse = true;
-        
-        // 在NBT中设置使用状态
-        NbtCompound nbt = stack.getOrCreateNbt();
-        nbt.putBoolean(USING_KEY, true);
         
         if (world.isClient) {
             return; // 客户端不处理射击逻辑
         }
-
-        // 获取或初始化冷却时间
+        
+        // 获取冷却时间
+        NbtCompound nbt = stack.getOrCreateNbt();
         int cooldown = nbt.getInt("Cooldown");
-
+        
         // 检查冷却时间和耐久度
         if (cooldown <= 0 && stack.getDamage() < stack.getMaxDamage()) {
             // 创建并发射向日葵种子
             fireProjectile(world, user, stack);
-
+            
             // 重置冷却时间
             nbt.putInt("Cooldown", FIRE_COOLDOWN);
-
+            
             // 消耗耐久度
             stack.damage(1, user, (player) -> player.sendToolBreakStatus(user.getActiveHand()));
         } else if (cooldown > 0) {
@@ -168,8 +174,12 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
         if (!stillUsing) {
             anyItemInUse = false;
         }
-        
-        // 冷却时间逻辑保持不变...
+    }
+
+    @Override
+    public void onItemEntityDestroyed(ItemEntity entity) {
+        // 当物品实体被销毁时的处理，例如掉入岩浆
+        super.onItemEntityDestroyed(entity);
     }
 
     // 发射种子弹
@@ -249,5 +259,45 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
     public boolean canRepair(ItemStack stack, ItemStack ingredient) {
         // 可以使用向日葵进行修复
         return ingredient.isOf(Items.SUNFLOWER);
+    }
+
+    @Override
+    public boolean isPerspectiveAware() {
+        return true;
+    }
+
+    // 添加新的方法来实现物品的使用状态检查
+    @Override
+    public boolean isUsedOnRelease(ItemStack stack) {
+        return false; // 这种物品不需要在释放时使用
+    }
+
+    // 客户端初始化方法，注册按键事件
+    public static void initClient() {
+        // 注册与原版使用键（右键）相同的按键绑定
+        fireKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.utopiabosses.fire_gatling",
+            InputUtil.Type.MOUSE,
+            1, // 右键的代码是1
+            "category.utopiabosses.weapons"
+        ));
+        
+        // 注册客户端tick事件
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            // 检查玩家是否按下了发射键
+            if (client.player != null && client.player.getMainHandStack().getItem() instanceof SunflowerGatlingItem) {
+                // 检查键盘状态而不是使用玩家的使用行为
+                if (fireKeyBinding.isPressed()) {
+                    // 设置使用状态
+                    ItemStack stack = client.player.getMainHandStack();
+                    NbtCompound nbt = stack.getOrCreateNbt();
+                    nbt.putBoolean(USING_KEY, true);
+                    nbt.putLong("LastUseTime", client.world.getTime());
+                    
+                    // 设置全局使用状态
+                    anyItemInUse = true;
+                }
+            }
+        });
     }
 }

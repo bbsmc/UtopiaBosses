@@ -47,6 +47,7 @@ import lt.utopiabosses.Utopiabosses;
 import java.util.List;
 import java.util.Random;
 import java.util.ArrayList;
+import net.minecraft.entity.ItemEntity;
 
 public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
@@ -54,7 +55,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     // 1. 修复动画定义 - 确保每个动画使用正确的资源
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().then("daiji", Animation.LoopType.LOOP);
     private static final RawAnimation LEFT_ATTACK_ANIM = RawAnimation.begin().then("zuobazhang", Animation.LoopType.PLAY_ONCE);
-    private static final RawAnimation RIGHT_ATTACK_ANIM = RawAnimation.begin().then("youbazhang", Animation.LoopType.PLAY_ONCE);
+    private static final RawAnimation RIGHT_MELEE_ATTACK_ANIM = RawAnimation.begin().then("youbazhang", Animation.LoopType.PLAY_ONCE);
     private static final RawAnimation RANGED_ATTACK_ANIM = RawAnimation.begin().then("yuancheng", Animation.LoopType.PLAY_ONCE);
     private static final RawAnimation SEED_BARRAGE_ANIM = RawAnimation.begin().then("yuancheng", Animation.LoopType.PLAY_ONCE);
     private static final RawAnimation SUNBEAM_ANIM = RawAnimation.begin().then("jiguangpao2", Animation.LoopType.PLAY_ONCE);
@@ -140,6 +141,62 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private int attackCooldown = 0;
     private static final int ATTACK_COOLDOWN_TIME = 20; // 3.5秒 (70 ticks)
 
+    // 添加太阳实体列表
+    private List<SunEntity> suns = new ArrayList<>();
+    private int absorbedSunCount = 0;
+
+    // 添加插值移动相关的字段
+    private static class SunPosition {
+        double x, y, z;
+        double targetX, targetY, targetZ;
+        
+        SunPosition(double x, double y, double z) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.targetX = x;
+            this.targetY = y;
+            this.targetZ = z;
+        }
+        
+        void updateTarget(double newX, double newY, double newZ) {
+            this.targetX = newX;
+            this.targetY = newY;
+            this.targetZ = newZ;
+        }
+        
+        void interpolate() {
+            // 每tick移动固定距离
+            double dx = targetX - x;
+            double dy = targetY - y;
+            double dz = targetZ - z;
+            
+            // 计算到目标的距离
+            double distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            
+            if (distance > 0.1) { // 如果距离大于0.1格
+                // 每tick移动0.1格距离
+                double moveSpeed = 0.1;
+                double factor = moveSpeed / distance;
+                
+                x += dx * factor;
+                y += dy * factor;
+                z += dz * factor;
+            } else {
+                // 如果非常接近目标，直接设置到目标位置
+                x = targetX;
+                y = targetY;
+                z = targetZ;
+            }
+        }
+    }
+
+    // 添加太阳位置缓存
+    private List<SunPosition> sunPositions = new ArrayList<>();
+
+    // 在类的开头添加调试开关
+    private static final boolean DEBUG_SUNBEAM_ONLY = false; // 调试开关：设为true时只使用阳光射线技能
+
     public SunflowerBossEntity(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
         this.bossBar = new ServerBossBar(
@@ -172,6 +229,15 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
     @Override
     public void tick() {
+        // 在tick开始时检查并清理可能的遗留太阳
+        if (!this.getWorld().isClient() && this.age % 20 == 0) { // 每秒检查一次
+            if (currentAnimation != AnimationType.SUNBEAM && !suns.isEmpty()) {
+                System.out.println("检测到非阳光射线状态下的残留太阳，执行清理");
+                cleanupSuns();
+                cleanupAllSunsInWorld();
+            }
+        }
+        
         super.tick();
 
         // 如果正在播放死亡动画，只处理死亡动画相关逻辑
@@ -447,6 +513,22 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             this.bodyYaw = this.getYaw();
             this.headYaw = this.getYaw();
         }
+        
+        // 检查并清理任何可能残留的太阳实体
+        if (!this.getWorld().isClient() && this.currentAnimation != AnimationType.SUNBEAM) {
+            for (SunEntity sun : new ArrayList<>(suns)) {
+                if (sun != null && (!sun.isAlive() || sun.isRemoved())) {
+                    suns.remove(sun);
+                    System.out.println("移除了一个无效的太阳实体");
+                }
+            }
+        }
+        
+        // 在tick开始时检查当前动画状态
+        if (currentAnimation != AnimationType.SUNBEAM && !suns.isEmpty()) {
+            System.out.println("检测到非阳光射线状态下的残留太阳，执行清理");
+            cleanupSuns();
+        }
     }
     
     // 获取动画持续时间的辅助方法
@@ -548,14 +630,28 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         System.out.println("开始阳光灼烧射线技能");
         setAnimation(AnimationType.SUNBEAM);
-        sunbeamCooldown = 10; // 短冷却，确保技能序列
+        
+        // 在调试模式下将冷却时间设为最小值
+        sunbeamCooldown = DEBUG_SUNBEAM_ONLY ? 1 : 10;
+        
+        // 清空之前的太阳列表
+        suns.clear();
+        sunPositions.clear();
+        absorbedSunCount = 0;
+        
+        // 生成太阳
+        spawnSuns();
         
         // 播放音效
         this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(), 
                 SoundEvents.ENTITY_BLAZE_AMBIENT, SoundCategory.HOSTILE, 1.0F, 0.5F);
         
         // 发送消息
-        sendMessageToNearbyPlayers("§e向日葵BOSS使用了§c阳光灼烧射线§e技能！");
+        if (!DEBUG_SUNBEAM_ONLY) { // 在调试模式下不发送消息
+            sendMessageToNearbyPlayers("§e向日葵BOSS使用了§c阳光灼烧射线§e技能！");
+        }
+        
+        System.out.println("阳光灼烧射线技能初始化完成，开始生成太阳");
     }
 
     private void startPetalStormSkill() {
@@ -648,7 +744,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         animation = LEFT_ATTACK_ANIM;
                         break;
                     case RIGHT_MELEE_ATTACK:
-                        animation = RIGHT_ATTACK_ANIM;
+                        animation = RIGHT_MELEE_ATTACK_ANIM;
                         break;
                     case RANGED_ATTACK:
                         animation = RANGED_ATTACK_ANIM;
@@ -675,7 +771,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             })
             .triggerableAnim("idle", IDLE_ANIM)
             .triggerableAnim("left_attack", LEFT_ATTACK_ANIM)
-            .triggerableAnim("right_attack", RIGHT_ATTACK_ANIM)
+            .triggerableAnim("right_attack", RIGHT_MELEE_ATTACK_ANIM)
             .triggerableAnim("ranged", RANGED_ATTACK_ANIM)
             .triggerableAnim("seed_barrage", SEED_BARRAGE_ANIM)
             .triggerableAnim("sunbeam", SUNBEAM_ANIM)
@@ -726,6 +822,14 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 半血首次触发 - 在下一个tick中处理，避免在damage期间改变状态
             isHalfHealthTriggered = true;
             System.out.println("BOSS血量降至半血，将在下一个Tick触发花瓣风暴");
+        }
+        
+        // 如果受到伤害且正在释放阳光射线技能，中断技能并清理太阳
+        if (this.currentAnimation == AnimationType.SUNBEAM) {
+            System.out.println("受到伤害，中断阳光射线技能");
+            cleanupSuns();
+            this.currentAnimation = AnimationType.IDLE;
+            this.animationTicks = 0;
         }
         
         return damaged;
@@ -807,25 +911,15 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
     @Override
     public void onDeath(DamageSource damageSource) {
-        // 如果已经在播放死亡动画或动画已经播放完毕且标记为应该移除，跳过原始的onDeath处理
-        if (isPlayingDeathAnimation || shouldBeRemoved) {
-            System.out.println("已经在播放死亡动画或已完成死亡动画，跳过onDeath处理");
-            return;
-        }
-        
-        // 如果直接调用onDeath而没有经过damage方法（如命令杀死），则播放死亡动画
-        if (!isPlayingDeathAnimation) {
-            System.out.println("直接调用onDeath，启动死亡动画");
-            startDeathAnimation(damageSource, this.getHealth());
-            return;
-        }
-        
-        // 如果上述条件都不满足，调用真正的死亡处理
+        System.out.println("BOSS死亡，清理所有太阳实体");
+        cleanupSuns();
         super.onDeath(damageSource);
     }
 
     @Override
     public void remove(Entity.RemovalReason reason) {
+        System.out.println("BOSS被移除，清理所有太阳实体");
+        cleanupSuns();
         // 如果正在播放死亡动画且不是明确要求删除，推迟删除
         if (isPlayingDeathAnimation && reason != RemovalReason.KILLED && !shouldBeRemoved) {
             System.out.println("正在播放死亡动画，推迟实体移除: " + reason);
@@ -868,15 +962,37 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     public void writeCustomDataToNbt(NbtCompound nbt) {
         super.writeCustomDataToNbt(nbt);
         nbt.putInt("AnimationState", currentAnimation.ordinal());
+        
+        // 保存太阳技能相关状态
+        nbt.putBoolean("HasActiveSuns", !suns.isEmpty());
+        nbt.putInt("AbsorbedSunCount", absorbedSunCount);
     }
 
     @Override
     public void readCustomDataFromNbt(NbtCompound nbt) {
         super.readCustomDataFromNbt(nbt);
+        
+        // 读取动画状态
         if (nbt.contains("AnimationState")) {
             int animState = nbt.getInt("AnimationState");
             if (animState >= 0 && animState < AnimationType.values().length) {
                 currentAnimation = AnimationType.values()[animState];
+            }
+        }
+        
+        // 检查是否有未完成的太阳技能
+        if (nbt.contains("HasActiveSuns") && nbt.getBoolean("HasActiveSuns")) {
+            System.out.println("检测到未完成的太阳技能，执行清理...");
+            // 强制清理所有可能存在的太阳实体
+            cleanupAllSunsInWorld();
+            // 重置相关状态
+            suns.clear();
+            sunPositions.clear();
+            absorbedSunCount = 0;
+            // 重置技能状态
+            if (currentAnimation == AnimationType.SUNBEAM) {
+                currentAnimation = AnimationType.IDLE;
+                animationTicks = 0;
             }
         }
     }
@@ -1005,192 +1121,312 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     }
 
 
-    // 修复阳光灼烧射线技能的粒子效果
+    // 修改createSunbeamEffect方法
     private void createSunbeamEffect(LivingEntity target) {
         if (target == null) return;
         
-        // 获取当前动画帧
         int currentFrame = this.animationTicks;
+        System.out.println("阳光灼烧射线技能执行中，当前帧: " + currentFrame);
         
-        // 添加调试输出，帮助排查问题
-        if (currentFrame % 20 == 0) {
-            System.out.println("阳光灼烧射线技能执行中，当前帧: " + currentFrame);
+        // 前100帧处理太阳相关的逻辑
+        if (currentFrame < 100) {
+            // 更新太阳的位置和动画
+            updateSuns(currentFrame);
+        } else if (currentFrame < SUNBEAM_DURATION) {
+            // 100-160帧执行360度扫射攻击
+            // 计算当前旋转角度 - 在60帧内完成一整圈旋转
+            double rotationProgress = (currentFrame - 100) / 60.0; // 60帧完成一圈
+            double currentAngle = rotationProgress * (2 * Math.PI); // 2π = 360度
+            
+            // 每3帧发射一次光束
+            if (currentFrame % 3 == 0) {
+                // 从BOSS位置发射光束
+                double baseAngle = currentAngle; // 使用计算出的旋转角度
+                double beamLength = 20.0; // 光束长度
+                
+                // BOSS头部位置
+                Vec3d start = new Vec3d(
+                    this.getX(),
+                    this.getY() + this.getHeight() * 0.65,
+                    this.getZ()
+                );
+                
+                // 发射多个光束形成扇形
+                int beamsPerShot = 3; // 每次发射3个光束
+                double beamSpread = Math.PI / 8; // 光束之间的角度间隔
+                
+                for (int i = 0; i < beamsPerShot; i++) {
+                    double spreadOffset = (i - (beamsPerShot - 1) / 2.0) * beamSpread;
+                    double finalAngle = baseAngle + spreadOffset;
+                    createBeam(start, finalAngle, beamLength);
+                }
+                
+                // 播放光束音效
+                if (currentFrame % 6 == 0) { // 降低音效频率
+                    this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+                        SoundEvents.ENTITY_GUARDIAN_ATTACK,
+                        SoundCategory.HOSTILE, 0.8f, 0.5f);
+                }
+                
+                // 设置BOSS的朝向跟随光束
+                float yawDegrees = (float) Math.toDegrees(baseAngle) + 90;
+                this.setYaw(yawDegrees);
+                this.bodyYaw = yawDegrees;
+                this.headYaw = yawDegrees;
+            }
         }
         
-        // 前100帧(5秒)为回血和四条光柱阶段
-        if (currentFrame < 100) {
-            // 每20帧(1秒)回复10滴血(5颗心)
-            if (currentFrame % 20 == 0) {
-                this.heal(10.0f); // 回复10滴血
-                
-                // 播放治疗音效和粒子
-                if (this.getWorld() instanceof ServerWorld serverWorld) {
-                    serverWorld.spawnParticles(
-                        ParticleTypes.HEART,
-                        this.getX(), this.getY() + this.getHeight() * 0.8, this.getZ(),
-                        5, 0.5, 0.5, 0.5, 0.1
-                    );
-                    
-                    this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-                        SoundEvents.ENTITY_PLAYER_LEVELUP, SoundCategory.HOSTILE, 1.0f, 1.5f);
-                }
+        // 技能结束时确保清理
+        if (currentFrame >= SUNBEAM_DURATION) {
+            cleanupSuns();
+            
+            // 在调试模式下，技能结束后立即重新开始
+            if (DEBUG_SUNBEAM_ONLY) {
+                System.out.println("调试模式：技能结束，立即重新开始");
+                this.animationTicks = 0;
+                this.currentAnimation = AnimationType.IDLE;
+                this.isAnimationLocked = false;
             }
+        }
+    }
+
+    // 修改spawnSuns方法，增加生成半径
+    private void spawnSuns() {
+        if (this.getWorld().isClient()) return;
+        
+        System.out.println("开始生成太阳实体");
+        suns.clear();
+        sunPositions.clear();
+        absorbedSunCount = 0;
+        
+        // 生成5个太阳围绕BOSS头部
+        for (int i = 0; i < 5; i++) {
+            double angle = (i * 2 * Math.PI) / 5;
+            double radius = 10.0; // 将半径从5.0增加到10.0
+            double x = this.getX() + Math.cos(angle) * radius;
+            double z = this.getZ() + Math.sin(angle) * radius;
+            double y = this.getY() + this.getHeight() * 0.65 + 4;
             
-            // 调整光束起点 - 从头部发射
-            double modelScale = 1.5; // 与渲染器中的缩放因子匹配
-            double headHeight = this.getHeight() * 0.65; // 调整为更准确的头部位置
-            Vec3d start = this.getPos().add(0, headHeight, 0);
-            
-            // 创建四条45度角朝下的光柱
-            double[] angles = {0, 90, 180, 270}; // 四个方向
-            double beamLength = 16.0; // 光束长度
-            
-            for (double angle : angles) {
-                // 计算水平方向
-                double radians = Math.toRadians(angle);
-                double horizontalX = Math.cos(radians);
-                double horizontalZ = Math.sin(radians);
+            try {
+                SunEntity sun = new SunEntity(EntityType.ITEM, this.getWorld());
+                sun.setPosition(x, y, z);
+                sun.setOwner(this);
+                sun.setNoGravity(true);
                 
-                // 45度角朝下
-                Vec3d direction = new Vec3d(horizontalX, -1, horizontalZ).normalize();
-                Vec3d end = start.add(direction.multiply(beamLength));
+                // 创建并存储位置信息
+                sunPositions.add(new SunPosition(x, y, z));
                 
-                // 创建光束粒子
-                if (this.getWorld() instanceof ServerWorld serverWorld) {
-                    for (double d = 0; d < beamLength; d += 0.5) {
-                        Vec3d pos = start.add(direction.multiply(d));
-                        serverWorld.spawnParticles(
-                            ParticleTypes.END_ROD,
-                            pos.x, pos.y, pos.z,
-                            1, 0.05, 0.05, 0.05, 0
-                        );
+                this.getWorld().spawnEntity(sun);
+                suns.add(sun);
+                
+                System.out.println("成功生成第 " + (i + 1) + " 个太阳实体");
+                
+                // 播放生成音效
+                this.getWorld().playSound(null, x, y, z,
+                    SoundEvents.BLOCK_BEACON_ACTIVATE,
+                    SoundCategory.HOSTILE, 1.0f, 1.5f);
+            } catch (Exception e) {
+                System.out.println("生成太阳实体失败: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    // 修改updateSuns方法，使用新的移动系统
+    private void updateSuns(int currentFrame) {
+        if (this.getWorld().isClient()) return;
+        
+        // 如果已经超过100帧，强制清理所有太阳并返回
+        if (currentFrame >= 100) {
+            cleanupSuns();
+            return;
+        }
+        
+        // 移除无效的太阳实体
+        suns.removeIf(sun -> sun == null || sun.isRemoved() || !sun.isAlive());
+        
+        // 修改时间分配：50帧旋转，45帧吸收
+        int rotationEndFrame = 50;
+        int absorbInterval = 7;
+        
+        // 更新每个太阳的位置
+        for (int i = 0; i < suns.size(); i++) {
+            SunEntity sun = suns.get(i);
+            if (sun != null && !sun.isAbsorbed()) {
+                // 计算每个太阳的基础角度
+                double baseAngle = (i * 2 * Math.PI) / 5;
+                
+                if (currentFrame < rotationEndFrame) {
+                    // 旋转阶段（0-50帧）
+                    double rotationProgress = currentFrame / (double)rotationEndFrame;
+                    double currentRotation = rotationProgress * (2 * Math.PI);
+                    double angle = baseAngle - currentRotation;
+                    double radius = 10.0;
+                    
+                    // 计算目标位置
+                    double targetX = this.getX() + Math.cos(angle) * radius;
+                    double targetZ = this.getZ() + Math.sin(angle) * radius;
+                    double targetY = this.getY() + this.getHeight() * 0.65 + 4;
+                    
+                    // 设置目标位置
+                    sun.setTargetPos(new Vec3d(targetX, targetY, targetZ));
+                    
+                    // 计算旋转速度
+                    double circumference = 2 * Math.PI * radius;
+                    double speedPerFrame = (circumference / rotationEndFrame) / 20;
+                    sun.setMoveSpeed(speedPerFrame);
+                    
+                } else if (currentFrame < 95) { // 确保在95帧前完成所有吸收
+                    // 吸收阶段（50-95帧）
+                    int absorptionFrame = rotationEndFrame + (i * absorbInterval);
+                    
+                    if (currentFrame >= absorptionFrame && !sun.isAbsorbed()) {
+                        // 计算到BOSS的位置
+                        double bossX = this.getX();
+                        double bossY = this.getY() + this.getHeight() * 0.65 + 1;
+                        double bossZ = this.getZ();
+                        Vec3d bossPos = new Vec3d(bossX, bossY, bossZ);
                         
-                        // 每隔一段距离添加一些金色粒子
-                        if (d % 2 < 0.5) {
-                            serverWorld.spawnParticles(
-                                ParticleTypes.GLOW,
-                                pos.x, pos.y, pos.z,
-                                1, 0.1, 0.1, 0.1, 0.05
-                            );
+                        // 设置目标位置为BOSS位置
+                        sun.setTargetPos(bossPos);
+                        
+                        // 增加最后一个太阳的移动速度
+                        double moveSpeed = (i == 4) ? 0.8 : 0.5; // 最后一个太阳移动更快
+                        sun.setMoveSpeed(moveSpeed);
+                        
+                        // 增加吸收距离，特别是对最后一个太阳
+                        double absorbDistance = (i == 4) ? 3.0 : 2.0;
+                        double distanceToBoss = sun.getPos().distanceTo(bossPos);
+                        if (distanceToBoss < absorbDistance) {
+                            absorbSun();
+                            continue;
                         }
                     }
                 }
                 
-                // 检测光束路径上的玩家并造成伤害
-                Box beamBox = new Box(
-                    Math.min(start.x, end.x) - 0.5, Math.min(start.y, end.y) - 0.5, Math.min(start.z, end.z) - 0.5,
-                    Math.max(start.x, end.x) + 0.5, Math.max(start.y, end.y) + 0.5, Math.max(start.z, end.z) + 0.5
-                );
-                
-                List<PlayerEntity> players = this.getWorld().getEntitiesByClass(
-                    PlayerEntity.class, beamBox, player -> !player.isSpectator() && player.isAlive()
-                );
-                
-                for (PlayerEntity player : players) {
-                    // 造成3颗心伤害
-                    player.damage(this.getDamageSources().mobAttack(this), 6.0f);
-                    player.setOnFireFor(3); // 点燃目标3秒
-                    
-                    // 添加减速效果，持续3秒
-                    player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 60, 1));
-                }
-            }
-            
-            // 每隔一段时间播放充能音效
-            if (currentFrame % 20 == 0) {
-                this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-                    SoundEvents.BLOCK_BEACON_AMBIENT, SoundCategory.HOSTILE, 1.0f, 0.8f);
-            }
-        } 
-        // 后60帧(3秒)为密集光束扫射
-        else if (currentFrame < 160) {
-            // 在阶段开始时播放强力音效
-            if (currentFrame == 100) {
-                this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-                    SoundEvents.ENTITY_WITHER_SHOOT, SoundCategory.HOSTILE, 2.0f, 0.5f);
-                
-                // 发送警告消息
-                sendMessageToNearbyPlayers("§c§l向日葵BOSS正在释放毁灭光线！快躲开！");
-                
-                System.out.println("开始释放360度光束扫射！");
-            }
-            
-            // 调整光束起点 - 从头部发射
-            double modelScale = 1.5;
-            double headHeight = this.getHeight() * 0.65;
-            Vec3d start = this.getPos().add(0, headHeight, 0);
-            
-            // 确保每帧都生成光束，不管当前帧是多少
-            // 大幅增加光束密度 - 每帧发射更多光束
-            int beamsPerFrame = 6; // 增加到每帧6条光束
-            
-            System.out.println("生成光束，当前帧: " + currentFrame + "，每帧光束数: " + beamsPerFrame);
-            
-            // 额外发射一组固定角度的光束，确保覆盖全方位
-            if (currentFrame % 5 == 0) { // 每5帧额外发射一组
-                // 发射8个固定方向的光束
-                for (int i = 0; i < 8; i++) {
-                    double angle = i * (Math.PI / 4);
-                    createBeam(start, angle, 25.0);
-                }
-            }
-            
-            // 原有的随机分布光束
-            for (int i = 0; i < beamsPerFrame; i++) {
-                // 计算当前光束的角度 - 均匀分布在360度范围内
-                double totalBeams = 60 * beamsPerFrame;
-                double beamIndex = (currentFrame - 100) * beamsPerFrame + i;
-                double beamAngleDegrees = (beamIndex / totalBeams) * 360.0;
-                double beamAngleRadians = Math.toRadians(beamAngleDegrees);
-                
-                createBeam(start, beamAngleRadians, 25.0);
-            }
-            
-            // 持续播放环境音效
-            if (currentFrame % 10 == 0) {
-                this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-                    SoundEvents.BLOCK_BEACON_POWER_SELECT, SoundCategory.HOSTILE, 0.5f, 2.0f);
-            }
-            
-            // 添加视觉效果 - 在BOSS周围创建粒子环
-            if (this.getWorld() instanceof ServerWorld serverWorld && currentFrame % 3 == 0) {
-                double particleRadius = 3.0;
-                double particleY = this.getY() + headHeight;
-                
-                // 创建粒子环
-                for (int i = 0; i < 16; i++) { // 增加粒子数量
-                    double angle = (i * Math.PI / 8) + (currentFrame * 0.1); // 随时间旋转
-                    double particleX = this.getX() + Math.cos(angle) * particleRadius;
-                    double particleZ = this.getZ() + Math.sin(angle) * particleRadius;
-                    
+                // 添加视觉效果
+                if (this.getWorld() instanceof ServerWorld serverWorld) {
+                    // 普通粒子效果
                     serverWorld.spawnParticles(
-                        ParticleTypes.FLAME,
-                        particleX, particleY, particleZ,
-                        1, 0.1, 0.1, 0.1, 0.05
+                        ParticleTypes.END_ROD,
+                        sun.getX(), sun.getY(), sun.getZ(),
+                        1, 0.1, 0.1, 0.1, 0.02
                     );
                     
-                    // 添加第二层粒子环
-                    double innerRadius = 1.5;
-                    double innerX = this.getX() + Math.cos(angle + 0.5) * innerRadius;
-                    double innerZ = this.getZ() + Math.sin(angle + 0.5) * innerRadius;
+                    // 如果在吸收阶段，添加连接线效果
+                    if (currentFrame >= rotationEndFrame) {
+                        Vec3d sunPos = sun.getPos();
+                        Vec3d bossPos = this.getPos().add(0, this.getHeight() * 0.65, 0);
+                        
+                        // 在太阳和BOSS之间生成粒子线
+                        for (int j = 0; j < 5; j++) {
+                            double progress = j / 5.0;
+                            Vec3d particlePos = sunPos.lerp(bossPos, progress);
+                            serverWorld.spawnParticles(
+                                ParticleTypes.FLAME,
+                                particlePos.x, particlePos.y, particlePos.z,
+                                1, 0.1, 0.1, 0.1, 0.01
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 在95帧后强制清理所有剩余的太阳
+        if (currentFrame >= 95) {
+            cleanupSuns();
+        }
+    }
+
+    // 添加平滑插值函数
+    private double smoothstep(double x) {
+        // 使用三次平滑插值函数
+        return x * x * (3 - 2 * x);
+    }
+
+    // 在技能结束时清理
+    private void cleanupSuns() {
+        System.out.println("开始清理所有太阳实体，当前数量: " + suns.size());
+        
+        try {
+            // 使用新的ArrayList来避免并发修改异常
+            for (SunEntity sun : new ArrayList<>(suns)) {
+                if (sun != null) {
+                    // 标记为已吸收
+                    sun.setAbsorbed(true);
+                    // 立即移除实体
+                    sun.discard();
+                    // 从世界中移除
+                    sun.remove(Entity.RemovalReason.DISCARDED);
+                    // 从列表中移除
+                    suns.remove(sun);
                     
-                    serverWorld.spawnParticles(
-                        ParticleTypes.SOUL_FIRE_FLAME,
-                        innerX, particleY, innerZ,
-                        1, 0.05, 0.05, 0.05, 0.02
-                    );
+                    System.out.println("成功移除一个太阳实体");
                 }
             }
             
-            // 在技能结束时重置冷却时间
-            if (currentFrame == 159) {
-                // 设置合理的冷却时间，例如10秒(200帧)
-                sunbeamCooldown = 200;
-                System.out.println("阳光灼烧射线技能结束，设置冷却时间: " + sunbeamCooldown);
+            // 清空列表和计数
+            suns.clear();
+            sunPositions.clear();
+            absorbedSunCount = 0;
+            
+            System.out.println("太阳实体清理完成");
+        } catch (Exception e) {
+            System.out.println("清理太阳实体时出错: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    // 修改absorbSun方法，确保快速移除
+    private void absorbSun() {
+        if (suns.isEmpty() || absorbedSunCount >= 5) {
+            return;
+        }
+        
+        // 获取要吸收的太阳
+        SunEntity sunToAbsorb = null;
+        for (SunEntity sun : new ArrayList<>(suns)) {
+            if (sun != null && !sun.isAbsorbed()) {
+                sunToAbsorb = sun;
+                break;
             }
-        } else {
-            // 如果帧数超出范围，输出警告
-            System.out.println("警告：阳光灼烧射线技能帧数超出范围: " + currentFrame);
+        }
+        
+        if (sunToAbsorb != null) {
+            try {
+                // 立即移除太阳实体
+                sunToAbsorb.setAbsorbed(true);
+                sunToAbsorb.discard(); // 立即移除实体
+                suns.remove(sunToAbsorb);
+                absorbedSunCount++;
+                
+                // 回复生命值
+                this.heal(20.0f);
+                
+                // 播放吸收效果
+                if (this.getWorld() instanceof ServerWorld serverWorld) {
+                    // 缩短粒子效果的持续时间
+                    serverWorld.spawnParticles(
+                        ParticleTypes.EXPLOSION,
+                        sunToAbsorb.getX(),
+                        sunToAbsorb.getY(),
+                        sunToAbsorb.getZ(),
+                        3, 0.1, 0.1, 0.1, 0.05 // 减少粒子扩散范围
+                    );
+                    
+                    // 播放更短的音效
+                    this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+                        SoundEvents.ENTITY_PLAYER_LEVELUP,
+                        SoundCategory.HOSTILE, 0.8f, 1.8f // 提高音调使音效更短
+                    );
+                }
+                
+                System.out.println("太阳实体已被立即吸收和移除，剩余数量: " + suns.size());
+            } catch (Exception e) {
+                System.out.println("移除太阳实体时出错: " + e.getMessage());
+                e.printStackTrace();
+            }
         }
     }
 
@@ -1209,38 +1445,39 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         // 创建光束粒子
         if (this.getWorld() instanceof ServerWorld serverWorld) {
-            // 主光束 - 更密集的粒子
-            for (double d = 0; d < beamLength; d += 0.15) {
+            // 主光束 - 减少粒子密度
+            for (double d = 0; d < beamLength; d += 0.8) { // 进一步减少粒子密度
                 Vec3d pos = start.add(direction.multiply(d));
                 
                 // 主光束 - 白色
                 serverWorld.spawnParticles(
                     ParticleTypes.END_ROD,
                     pos.x, pos.y, pos.z,
-                    3, 0.05, 0.05, 0.05, 0
+                    1,
+                    0.05, 0.05, 0.05, 0
                 );
                 
-                // 随机添加额外的粒子效果
-                if (random.nextFloat() < 0.4) {
+                // 极低概率生成火焰粒子
+                if (random.nextFloat() < 0.1) { // 降低火焰粒子生成概率
                     serverWorld.spawnParticles(
                         ParticleTypes.FLAME,
                         pos.x, pos.y, pos.z,
-                        2, 0.1, 0.1, 0.1, 0.05
-                    );
-                }
-                
-                // 光束末端的爆炸效果
-                if (d > beamLength - 1.0) {
-                    serverWorld.spawnParticles(
-                        ParticleTypes.EXPLOSION,
-                        pos.x, pos.y, pos.z,
-                        2, 0.3, 0.3, 0.3, 0.1
+                        1,
+                        0.1, 0.1, 0.1, 0.05
                     );
                 }
             }
+            
+            // 只在光束末端生成一个小型爆炸效果
+            serverWorld.spawnParticles(
+                ParticleTypes.EXPLOSION,
+                end.x, end.y, end.z,
+                1,
+                0.2, 0.2, 0.2, 0.1
+            );
         }
         
-        // 检测光束路径上的玩家并造成伤害
+        // 伤害检测逻辑保持不变
         Box beamBox = new Box(
             Math.min(start.x, end.x) - 1.0, Math.min(start.y, end.y) - 1.0, Math.min(start.z, end.z) - 1.0,
             Math.max(start.x, end.x) + 1.0, Math.max(start.y, end.y) + 1.0, Math.max(start.z, end.z) + 1.0
@@ -1251,13 +1488,11 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         );
         
         for (PlayerEntity player : players) {
-            // 造成伤害
             player.damage(this.getDamageSources().mobAttack(this), 16.0f);
             player.setOnFireFor(10);
             player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 200, 3));
             player.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, 100, 1));
             
-            // 击退效果
             Vec3d knockback = player.getPos().subtract(this.getPos()).normalize();
             player.setVelocity(knockback.x * 1.5, 0.5, knockback.z * 1.5);
             player.velocityModified = true;
@@ -1346,7 +1581,17 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
     // 新方法：按照指定模式执行攻击
     private void executeAttackPattern(LivingEntity target, double distance) {
-        // 如果攻击冷却时间未完成，不执行攻击
+        // 如果开启了调试模式，只使用阳光射线技能
+        if (DEBUG_SUNBEAM_ONLY) {
+            // 检查当前是否在IDLE状态且没有锁定
+            if (this.currentAnimation == AnimationType.IDLE && !isAnimationLocked) {
+                System.out.println("调试模式：强制使用阳光射线技能");
+                startSunbeamSkill();
+            }
+            return;
+        }
+
+        // 原有的攻击模式逻辑
         if (attackCooldown > 0) {
             return;
         }
@@ -1533,8 +1778,35 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         super.handleStatus(status);
     }
 
-//    @Override
-//    protected Identifier getLootTableId() {
-//        return new Identifier(Utopiabosses.MOD_ID, "entities/sunflower_boss");
-//    }
+    // 添加新方法：清理世界中所有相关的太阳实体
+    private void cleanupAllSunsInWorld() {
+        if (this.getWorld() instanceof ServerWorld serverWorld) {
+            // 获取BOSS周围较大范围内的所有实体
+            Box searchBox = this.getBoundingBox().expand(32.0);
+            List<Entity> nearbyEntities = serverWorld.getEntitiesByClass(
+                Entity.class,
+                searchBox,
+                entity -> entity instanceof SunEntity // 只处理SunEntity
+            );
+            
+            // 移除所有找到的太阳实体
+            for (Entity entity : nearbyEntities) {
+                if (entity instanceof SunEntity sunEntity) {
+                    System.out.println("清理到一个遗留的太阳实体");
+                    sunEntity.setAbsorbed(true);
+                    sunEntity.discard();
+                    sunEntity.remove(Entity.RemovalReason.DISCARDED);
+                }
+            }
+        }
+    }
+
+    // 修改onRemoved方法，确保在实体被移除时清理
+    @Override
+    public void onRemoved() {
+        System.out.println("BOSS被移除，执行最终清理");
+        cleanupAllSunsInWorld(); // 添加这行
+        cleanupSuns();
+        super.onRemoved();
+    }
 } 

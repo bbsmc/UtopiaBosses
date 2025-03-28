@@ -36,6 +36,8 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     implementation("com.eliotlash.mclib:mclib:${mclib_version}")
     include("com.eliotlash.mclib:mclib:${mclib_version}")
+   // 识别 libs里的依赖
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
 
     // 恢复GeckoLib，但只用于生物模型和动画
     modImplementation("software.bernie.geckolib:geckolib-fabric-${project.minecraft_version}:${project.geckolib_version}")
