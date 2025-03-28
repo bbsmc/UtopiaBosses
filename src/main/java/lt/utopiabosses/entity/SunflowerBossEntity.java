@@ -629,15 +629,20 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         }
         
         System.out.println("开始阳光灼烧射线技能");
+        
+        // 在设置动画前先清理所有可能残留的太阳实体
+        cleanupAllSunsInWorld();
+        cleanupSuns();
+        
+        // 确保状态重置
+        suns.clear();
+        sunPositions.clear();
+        absorbedSunCount = 0;
+        
         setAnimation(AnimationType.SUNBEAM);
         
         // 在调试模式下将冷却时间设为最小值
         sunbeamCooldown = DEBUG_SUNBEAM_ONLY ? 1 : 10;
-        
-        // 清空之前的太阳列表
-        suns.clear();
-        sunPositions.clear();
-        absorbedSunCount = 0;
         
         // 生成太阳
         spawnSuns();
@@ -1126,17 +1131,29 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         if (target == null) return;
         
         int currentFrame = this.animationTicks;
-        System.out.println("阳光灼烧射线技能执行中，当前帧: " + currentFrame);
+        
+        // 添加更多详细的日志信息
+        if (currentFrame % 10 == 0 || currentFrame == 100) {
+            System.out.println("阳光灼烧射线技能执行中，当前帧: " + currentFrame + 
+                              "，目标: " + target.getName().getString() + 
+                              "，距离: " + this.distanceTo(target));
+        }
         
         // 前100帧处理太阳相关的逻辑
         if (currentFrame < 100) {
             // 更新太阳的位置和动画
             updateSuns(currentFrame);
         } else if (currentFrame < SUNBEAM_DURATION) {
+            // 记录光束发射阶段开始
+            if (currentFrame == 100) {
+                System.out.println("阳光灼烧射线开始发射光束阶段，太阳数量: " + suns.size() + 
+                                  "，目标位置: " + target.getPos());
+            }
+            
             // 100-160帧执行360度扫射攻击
-            // 计算当前旋转角度 - 在60帧内完成一整圈旋转
-            double rotationProgress = (currentFrame - 100) / 60.0; // 60帧完成一圈
-            double currentAngle = rotationProgress * (2 * Math.PI); // 2π = 360度
+            // 计算当前旋转角度 - 在60帧内完成两圈旋转
+            double rotationProgress = (currentFrame - 100) / 60.0; // 60帧完成两圈
+            double currentAngle = rotationProgress * (4 * Math.PI); // 4π = 720度 = 两圈
             
             // 每3帧发射一次光束
             if (currentFrame % 3 == 0) {
@@ -1154,6 +1171,13 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 // 发射多个光束形成扇形
                 int beamsPerShot = 3; // 每次发射3个光束
                 double beamSpread = Math.PI / 8; // 光束之间的角度间隔
+                
+                // 每20帧输出一次详细的光束信息
+                if (currentFrame % 20 == 0) {
+                    System.out.println("发射光束，角度: " + Math.toDegrees(baseAngle) + 
+                                     "，起点: " + start + 
+                                     "，光束数量: " + beamsPerShot);
+                }
                 
                 for (int i = 0; i < beamsPerShot; i++) {
                     double spreadOffset = (i - (beamsPerShot - 1) / 2.0) * beamSpread;
@@ -1178,6 +1202,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         // 技能结束时确保清理
         if (currentFrame >= SUNBEAM_DURATION) {
+            System.out.println("阳光灼烧射线技能结束，执行清理");
             cleanupSuns();
             
             // 在调试模式下，技能结束后立即重新开始
@@ -1479,15 +1504,21 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         // 伤害检测逻辑保持不变
         Box beamBox = new Box(
-            Math.min(start.x, end.x) - 1.0, Math.min(start.y, end.y) - 1.0, Math.min(start.z, end.z) - 1.0,
-            Math.max(start.x, end.x) + 1.0, Math.max(start.y, end.y) + 1.0, Math.max(start.z, end.z) + 1.0
+            Math.min(start.x, end.x) - 1.5, Math.min(start.y, end.y) - 1.5, Math.min(start.z, end.z) - 1.5,
+            Math.max(start.x, end.x) + 1.5, Math.max(start.y, end.y) + 1.5, Math.max(start.z, end.z) + 1.5
         );
         
         List<PlayerEntity> players = this.getWorld().getEntitiesByClass(
             PlayerEntity.class, beamBox, player -> !player.isSpectator() && player.isAlive()
         );
         
+        // 增加调试输出
+        if (!players.isEmpty()) {
+            System.out.println("阳光射线光束命中 " + players.size() + " 个玩家");
+        }
+        
         for (PlayerEntity player : players) {
+            System.out.println("向玩家 " + player.getName().getString() + " 造成阳光射线伤害");
             player.damage(this.getDamageSources().mobAttack(this), 16.0f);
             player.setOnFireFor(10);
             player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 200, 3));

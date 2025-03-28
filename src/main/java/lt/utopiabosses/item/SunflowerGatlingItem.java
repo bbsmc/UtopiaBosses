@@ -2,6 +2,7 @@ package lt.utopiabosses.item;
 
 import lt.utopiabosses.client.renderer.item.SunflowerGatlingRenderer;
 import lt.utopiabosses.entity.SunflowerSeedEntity;
+import lt.utopiabosses.network.NetworkHandler;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.item.BuiltinModelItemRenderer;
 import net.minecraft.entity.Entity;
@@ -12,6 +13,8 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.network.PacketByteBuf;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.Arm;
@@ -33,33 +36,41 @@ import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * 向日葵加特林枪 - 基于AzureAnimatedGunItem实现
+ */
 public class SunflowerGatlingItem extends Item implements GeoItem {
 
+    // 常量定义
+    public static final String CONTROLLER_NAME = "controller";
+    public static final String FIRING_ANIM = "fire";
+    public static final String IDLE_ANIM = "idle";
+
+    // 发射冷却时间，单位tick
+    private static final int FIRE_COOLDOWN = 2;
+
+    // GeckoLib动画缓存
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
 
-    // 发射冷却时间，单位tick，控制射速
-    // 10发/秒 = 每0.1秒1发 = 每2tick发射一次
-    // Minecraft一秒20tick
-    private static final int FIRE_COOLDOWN = 2;
+    // 预定义动画
+    private static final RawAnimation IDLE_ANIMATION = RawAnimation.begin().thenLoop(IDLE_ANIM);
+    private static final RawAnimation FIRING_ANIMATION = RawAnimation.begin().then(FIRING_ANIM, Animation.LoopType.PLAY_ONCE);
 
-    // 将静态变量改为常量，用于NBT标签
-    private static final String USING_KEY = "IsBeingUsed";
-
-    // 添加静态字段来跟踪任何加特林的使用状态
-    private static boolean anyItemInUse = false;
-    
     // 添加静态KeyBinding用于检测使用键
     private static KeyBinding fireKeyBinding;
 
     public SunflowerGatlingItem(Settings settings) {
         super(settings);
+        // 注册为可同步的动画实体
         SingletonGeoAnimatable.registerSyncedAnimatable(this);
     }
 
@@ -70,9 +81,9 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
 
             @Override
             public BuiltinModelItemRenderer getCustomRenderer() {
-                if (this.renderer == null)
+                if (this.renderer == null) {
                     this.renderer = new SunflowerGatlingRenderer();
-
+                }
                 return this.renderer;
             }
         });
@@ -84,16 +95,13 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
     }
 
     @Override
-    public void registerControllers(AnimatableManager.ControllerRegistrar controllerRegistrar) {
-        controllerRegistrar.add(new AnimationController<>(this, "gatling_controller", 0, event -> {
-            if (anyItemInUse) {
-                event.getController().setAnimation(RawAnimation.begin().then("fire", Animation.LoopType.LOOP));
-            } 
-            // else {
-            //    event.getController().setAnimation(RawAnimation.begin().then("idle", Animation.LoopType.LOOP));
-            // }
-            return PlayState.CONTINUE;
-        }));
+    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+        controllers.add(new AnimationController<>(this, CONTROLLER_NAME, 0, event -> {
+            // 默认情况下播放空闲动画
+            return event.setAndContinue(IDLE_ANIMATION);
+        })
+        // 添加可触发的射击动画
+        .triggerableAnim(FIRING_ANIM, FIRING_ANIMATION));
     }
 
     @Override
@@ -101,10 +109,192 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
         return cache;
     }
 
+    /**
+     * 使用物品时的处理 - 现在只在服务端处理发射逻辑，客户端通过网络包发送
+     */
+    @Override
+    public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
+        // 不再直接处理射击，而是通过网络包和inventoryTick
+        return TypedActionResult.pass(user.getStackInHand(hand));
+    }
+    
+    /**
+     * 发射武器的逻辑
+     */
+    public void fireWeapon(ItemStack stack, World world, LivingEntity user) {
+        if (!(world instanceof ServerWorld serverWorld)) return;
+        
+        // 检查耐久度并发射
+        if (stack.getDamage() < stack.getMaxDamage() - 1) {
+            // 创建并发射种子
+            SunflowerSeedEntity projectile = createProjectile(world, user);
+            world.spawnEntity(projectile);
+            
+            // 播放射击音效
+            world.playSound(null, user.getX(), user.getY(), user.getZ(),
+                SoundEvents.ENTITY_SNOWBALL_THROW, SoundCategory.PLAYERS, 0.5F, 
+                0.4F / (world.getRandom().nextFloat() * 0.4F + 0.8F));
+            
+            // 触发射击动画
+            if (user instanceof PlayerEntity player) {
+                triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), CONTROLLER_NAME, FIRING_ANIM);
+            }
+            
+            // 消耗耐久并添加冷却
+            stack.damage(1, user, p -> p.sendToolBreakStatus(user.getActiveHand()));
+            if (user instanceof PlayerEntity player) {
+                player.getItemCooldownManager().set(this, FIRE_COOLDOWN);
+            }
+        } else {
+            // 如果弹药耗尽则播放点击音效
+            world.playSound(null, user.getX(), user.getY(), user.getZ(),
+                    SoundEvents.BLOCK_DISPENSER_FAIL, SoundCategory.PLAYERS, 0.25F, 1.3F);
+        }
+    }
+    
+    /**
+     * 创建子弹实体
+     */
+    private SunflowerSeedEntity createProjectile(World world, LivingEntity user) {
+        SunflowerSeedEntity projectile = new SunflowerSeedEntity(world, user);
+        
+        // 计算发射位置和方向
+        Vec3d muzzlePos = calculateMuzzlePosition(user);
+        Vec3d velocity = calculateProjectileVelocity(user);
+        
+        // 设置属性
+        projectile.setPosition(muzzlePos);
+        projectile.setVelocity(velocity.multiply(3.0)); // 速度因子
+        projectile.setHomingTarget(null); // 不追踪
+        projectile.setDamage(2.0f);
+        
+        return projectile;
+    }
+    
+    /**
+     * 计算枪口位置
+     */
+    private Vec3d calculateMuzzlePosition(LivingEntity user) {
+        // 获取玩家视线方向
+        float yaw = user.getYaw();
+        float pitch = user.getPitch();
+        
+        // 转换为弧度
+        float yawRad = yaw * 0.017453292F;
+        float pitchRad = pitch * 0.017453292F;
+        
+        // 计算方向向量
+        Vec3d forward = new Vec3d(
+            -MathHelper.sin(yawRad) * MathHelper.cos(pitchRad),
+            -MathHelper.sin(pitchRad),
+            MathHelper.cos(yawRad) * MathHelper.cos(pitchRad)
+        ).normalize();
+        
+        Vec3d right = new Vec3d(
+            MathHelper.cos(yawRad),
+            0,
+            MathHelper.sin(yawRad)
+        ).normalize();
+        
+        // 确定水平偏移方向
+        boolean isMainHand = user.getActiveHand() == Hand.MAIN_HAND;
+        boolean isLeftHanded = user instanceof PlayerEntity && ((PlayerEntity)user).getMainArm() == Arm.LEFT;
+        
+        float horizontalOffset = 0.25f; // 减小水平偏移以减少视觉抖动
+        if (isLeftHanded) {
+            horizontalOffset = isMainHand ? horizontalOffset : -horizontalOffset;
+        } else {
+            horizontalOffset = isMainHand ? -horizontalOffset : horizontalOffset;
+        }
+        
+        // 计算枪口位置
+        return user.getEyePos()
+            .add(forward.multiply(1.0)) // 前方位移
+            .add(0, -0.15, 0) // 垂直位移 - 减小以减少抖动
+            .add(right.multiply(horizontalOffset));
+    }
+    
+    /**
+     * 计算子弹速度方向
+     */
+    private Vec3d calculateProjectileVelocity(LivingEntity user) {
+        float yaw = user.getYaw();
+        float pitch = user.getPitch();
+        
+        float yawRad = yaw * 0.017453292F;
+        float pitchRad = pitch * 0.017453292F;
+        
+        double x = -MathHelper.sin(yawRad) * MathHelper.cos(pitchRad);
+        double y = -MathHelper.sin(pitchRad);
+        double z = MathHelper.cos(yawRad) * MathHelper.cos(pitchRad);
+        
+        return new Vec3d(x, y, z).normalize();
+    }
+
+    @Override
+    public void inventoryTick(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
+        super.inventoryTick(stack, world, entity, slot, selected);
+        
+        // 客户端处理
+        if (world.isClient && entity instanceof PlayerEntity player && selected) {
+            // 检查是否需要初始化第一人称模型
+            boolean isFirstPerson = MinecraftClient.getInstance().options.getPerspective().isFirstPerson();
+            boolean needsInit = !stack.getOrCreateNbt().getBoolean("Initialized") || 
+                               (isFirstPerson && !stack.getOrCreateNbt().getBoolean("FirstPersonInitialized"));
+            
+            if (needsInit) {
+                NbtCompound nbt = stack.getOrCreateNbt();
+                nbt.putBoolean("Initialized", true);
+                
+                if (isFirstPerson) {
+                    nbt.putBoolean("FirstPersonInitialized", true);
+                }
+                
+                // 触发初始动画
+                triggerAnim(player, 0, CONTROLLER_NAME, IDLE_ANIM);
+                
+                // 强制更新第一人称渲染
+                MinecraftClient client = MinecraftClient.getInstance();
+                client.gameRenderer.firstPersonRenderer.resetEquipProgress(Hand.MAIN_HAND);
+                client.gameRenderer.firstPersonRenderer.resetEquipProgress(Hand.OFF_HAND);
+            }
+            
+            // 检测视角变化
+            checkViewChange(stack, player, isFirstPerson);
+            
+            // 检测按键输入并发送网络包
+            if (MinecraftClient.getInstance().options.useKey.isPressed()) {
+                // 创建并发送射击网络包
+                PacketByteBuf buf = PacketByteBufs.create();
+                buf.writeBoolean(true);
+                ClientPlayNetworking.send(NetworkHandler.SHOOT_GATLING_PACKET_ID, buf);
+            }
+        }
+    }
+    
+    /**
+     * 检查视角变化并处理
+     */
+    private void checkViewChange(ItemStack stack, PlayerEntity player, boolean isFirstPerson) {
+        NbtCompound nbt = stack.getOrCreateNbt();
+        boolean wasFirstPerson = nbt.getBoolean("WasFirstPerson");
+        
+        if (isFirstPerson != wasFirstPerson) {
+            nbt.putBoolean("WasFirstPerson", isFirstPerson);
+            
+            // 视角变化时重新触发动画
+            triggerAnim(player, 0, CONTROLLER_NAME, IDLE_ANIM);
+            
+            // 强制更新渲染
+            MinecraftClient client = MinecraftClient.getInstance();
+            client.gameRenderer.firstPersonRenderer.resetEquipProgress(Hand.MAIN_HAND);
+            client.gameRenderer.firstPersonRenderer.resetEquipProgress(Hand.OFF_HAND);
+        }
+    }
+
     @Override
     public UseAction getUseAction(ItemStack stack) {
-        // 直接返回NONE，不使用任何动作，避免视角下移
-        return UseAction.NONE;
+        return UseAction.NONE; // 避免视角变化
     }
 
     @Override
@@ -113,151 +303,13 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
     }
 
     @Override
-    public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
-        ItemStack stack = user.getStackInHand(hand);
-
-        // 使用原生的物品使用系统，但不会导致视角下移
-        user.setCurrentHand(hand);
-        
-        // 初始化冷却时间
-        if (!stack.hasNbt() || !stack.getNbt().contains("Cooldown")) {
-            stack.getOrCreateNbt().putInt("Cooldown", 0);
-        }
-        
-        return TypedActionResult.consume(stack);
-    }
-
-    @Override
-    public void usageTick(World world, LivingEntity user, ItemStack stack, int remainingUseTicks) {
-        // 这个方法只有在玩家真正按住右键时才会调用
-        
-        // 设置全局动画标志
-        anyItemInUse = true;
-        
-        if (world.isClient) {
-            return; // 客户端不处理射击逻辑
-        }
-        
-        // 获取冷却时间
-        NbtCompound nbt = stack.getOrCreateNbt();
-        int cooldown = nbt.getInt("Cooldown");
-        
-        // 检查冷却时间和耐久度
-        if (cooldown <= 0 && stack.getDamage() < stack.getMaxDamage()) {
-            // 创建并发射向日葵种子
-            fireProjectile(world, user, stack);
-            
-            // 重置冷却时间
-            nbt.putInt("Cooldown", FIRE_COOLDOWN);
-            
-            // 消耗耐久度
-            stack.damage(1, user, (player) -> player.sendToolBreakStatus(user.getActiveHand()));
-        } else if (cooldown > 0) {
-            // 减少冷却时间
-            nbt.putInt("Cooldown", cooldown - 1);
-        }
-    }
-
-    @Override
-    public void inventoryTick(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
-        super.inventoryTick(stack, world, entity, slot, selected);
-        
-        // 检查实体是否正在使用这个物品
-        boolean stillUsing = false;
-        if (entity instanceof LivingEntity livingEntity && 
-                livingEntity.isUsingItem() && 
-                livingEntity.getActiveItem() == stack) {
-            stillUsing = true;
-        }
-        
-        // 只有不再使用时才重置标志
-        if (!stillUsing) {
-            anyItemInUse = false;
-        }
-    }
-
-    @Override
     public void onItemEntityDestroyed(ItemEntity entity) {
         // 当物品实体被销毁时的处理，例如掉入岩浆
         super.onItemEntityDestroyed(entity);
     }
 
-    // 发射种子弹
-    private void fireProjectile(World world, LivingEntity user, ItemStack stack) {
-        // 创建向日葵种子实体
-        SunflowerSeedEntity seedEntity = new SunflowerSeedEntity(world, user);
-
-        // 计算发射角度和速度
-        // 获取玩家视线方向，确保直线发射
-        float yaw = user.getYaw();
-        float pitch = user.getPitch();
-        float roll = 0.0F;
-
-        // 转换为弧度
-        float yawRadians = yaw * 0.017453292F;
-        float pitchRadians = pitch * 0.017453292F;
-
-        // 计算发射方向，基于玩家的视线方向
-        double motionX = -MathHelper.sin(yawRadians) * MathHelper.cos(pitchRadians);
-        double motionY = -MathHelper.sin(pitchRadians);
-        double motionZ = MathHelper.cos(yawRadians) * MathHelper.cos(pitchRadians);
-        
-        // 设置种子的位置 - 从枪口位置发射
-        Vec3d eyePos = user.getEyePos();
-        Vec3d direction = new Vec3d(motionX, motionY, motionZ).normalize();
-        
-        // 调整发射位置，使其看起来像从武器枪口发射
-        // 向前移动1.2格，向下移动0.3格，向右/左移动0.3格（根据主手/副手）
-        Vec3d rightVector = new Vec3d(
-            MathHelper.cos(yawRadians), 
-            0, 
-            MathHelper.sin(yawRadians)
-        ).normalize();
-        
-        // 判断使用的是主手还是副手，相应调整水平偏移方向
-        boolean isMainHand = user.getActiveHand() == Hand.MAIN_HAND;
-        // 如果是左手模式的玩家，需要反转
-        boolean isLeftHanded = user instanceof PlayerEntity && ((PlayerEntity)user).getMainArm() == Arm.LEFT;
-        
-        // 确定最终的水平偏移方向
-        float horizontalOffset = 0.35f; // 减少水平偏移
-        if (isLeftHanded) {
-            // 左撇子玩家
-            horizontalOffset = isMainHand ? horizontalOffset : -horizontalOffset;
-        } else {
-            // 右撇子玩家
-            horizontalOffset = isMainHand ? -horizontalOffset : horizontalOffset;
-        }
-        
-        // 计算最终的枪口位置
-        Vec3d muzzlePos = eyePos
-            .add(direction.multiply(1.3)) // 减少向前偏移
-            .add(new Vec3d(0, -0.3, 0))   // 减少向下偏移
-            .add(rightVector.multiply(horizontalOffset)); // 更适中的水平偏移
-            
-        seedEntity.setPosition(muzzlePos);
-
-        // 设置种子的速度
-        float velocity = 3.0f; // 速度因子，调整为合适的值
-        seedEntity.setVelocity(motionX * velocity, motionY * velocity, motionZ * velocity);
-
-        // 设置种子不追踪目标（直线发射）
-        seedEntity.setHomingTarget(null);
-        
-        // 设置种子的伤害值为0.5
-        seedEntity.setDamage(2f);
-
-        // 将种子添加到世界
-        world.spawnEntity(seedEntity);
-
-        // 播放发射音效
-        world.playSound(null, user.getX(), user.getY(), user.getZ(),
-                SoundEvents.ENTITY_SNOWBALL_THROW, SoundCategory.PLAYERS, 0.5F, 0.4F / (world.getRandom().nextFloat() * 0.4F + 0.8F));
-    }
-
     @Override
     public boolean canRepair(ItemStack stack, ItemStack ingredient) {
-        // 可以使用向日葵进行修复
         return ingredient.isOf(Items.SUNFLOWER);
     }
 
@@ -266,10 +318,16 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
         return true;
     }
 
-    // 添加新的方法来实现物品的使用状态检查
-    @Override
-    public boolean isUsedOnRelease(ItemStack stack) {
-        return false; // 这种物品不需要在释放时使用
+    /**
+     * 服务端射击方法，由网络包调用
+     */
+    public static void shoot(PlayerEntity player) {
+        ItemStack stack = player.getMainHandStack();
+        if (stack.getItem() instanceof SunflowerGatlingItem gatling && 
+            !player.getItemCooldownManager().isCoolingDown(gatling)) {
+            
+            gatling.fireWeapon(stack, player.getWorld(), player);
+        }
     }
 
     // 客户端初始化方法，注册按键事件
@@ -284,18 +342,16 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
         
         // 注册客户端tick事件
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // 检查玩家是否按下了发射键
-            if (client.player != null && client.player.getMainHandStack().getItem() instanceof SunflowerGatlingItem) {
-                // 检查键盘状态而不是使用玩家的使用行为
-                if (fireKeyBinding.isPressed()) {
-                    // 设置使用状态
-                    ItemStack stack = client.player.getMainHandStack();
-                    NbtCompound nbt = stack.getOrCreateNbt();
-                    nbt.putBoolean(USING_KEY, true);
-                    nbt.putLong("LastUseTime", client.world.getTime());
-                    
-                    // 设置全局使用状态
-                    anyItemInUse = true;
+            PlayerEntity player = client.player;
+            if (player != null && !player.isSpectator()) {
+                ItemStack stack = player.getMainHandStack();
+                if (stack.getItem() instanceof SunflowerGatlingItem) {
+                    // 检查键盘状态并发送网络包
+                    if (client.options.useKey.isPressed()) {
+                        PacketByteBuf buf = PacketByteBufs.create();
+                        buf.writeBoolean(true);
+                        ClientPlayNetworking.send(NetworkHandler.SHOOT_GATLING_PACKET_ID, buf);
+                    }
                 }
             }
         });

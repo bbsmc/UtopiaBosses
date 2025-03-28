@@ -31,7 +31,10 @@ public class ItemRegistry {
     // 斧子
     public static final SunflowerAxeItem SUNFLOWER_AXE = registerItem("sunflower_axe", new SunflowerAxeItem(new FabricItemSettings().maxDamage(1561).fireproof()));
     // 加特林
-    public static final SunflowerGatlingItem SUNFLOWER_GATLING = registerItem("sunflower_gatling", new SunflowerGatlingItem(new FabricItemSettings().maxDamage(1561).fireproof()));
+    public static final SunflowerGatlingItem SUNFLOWER_GATLING = registerItem("sunflower_gatling", 
+        new SunflowerGatlingItem(new FabricItemSettings()
+            .maxDamage(1561)
+            .fireproof()));
     // 锄子
     public static final SunflowerHoeItem SUNFLOWER_HOE = registerItem("sunflower_hoe", new SunflowerHoeItem(new FabricItemSettings().maxDamage(1561).fireproof()));
     // 镐子

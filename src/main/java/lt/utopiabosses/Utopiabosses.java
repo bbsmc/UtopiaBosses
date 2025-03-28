@@ -1,6 +1,7 @@
 package lt.utopiabosses;
 
 import lt.utopiabosses.event.CropHarvestHandler;
+import lt.utopiabosses.network.NetworkHandler;
 import lt.utopiabosses.registry.BlockEntityRegistry;
 import lt.utopiabosses.registry.BlockRegistry;
 import lt.utopiabosses.registry.EntityRegistry;
@@ -34,6 +35,9 @@ public class Utopiabosses implements ModInitializer {
         
         // 4. 最后注册物品
         ItemRegistry.registerItems();
+        
+        // 注册网络处理器
+        NetworkHandler.registerNetworkHandlers();
         
         // 注册事件处理器
         CropHarvestHandler.register();
