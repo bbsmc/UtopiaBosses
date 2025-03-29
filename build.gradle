@@ -81,7 +81,8 @@ jar {
 // // 添加复制任务，将构建好的JAR文件复制到Minecraft的mods目录
 task copyJarToMods(type: Copy, dependsOn: remapJar) {
     from("${buildDir}/libs/${archivesBaseName}-${version}.jar")
-    into("/Users/admin/Documents/work/客户端/1.20.1/.minecraft/versions/1.20.1-Fabric/mods/")
+//    into("/Users/admin/Documents/work/客户端/1.20.1/.minecraft/versions/1.20.1-Fabric/mods/")
+    into("D:\\客户端\\MC\\.minecraft\\versions\\1.20.1-Fabric 0.16.10\\mods")
     doLast {
         println "已复制 ${archivesBaseName}-${version}.jar 到Minecraft的mods目录"
     }

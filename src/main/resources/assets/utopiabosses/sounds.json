@@ -4,5 +4,35 @@
     "sounds": [
       "utopiabosses:item/gatling/fire"
     ]
+  },
+  "entity.sunflower.jin": {
+    "subtitle": "subtitles.entity.sunflower.jin",
+    "sounds": [
+      "utopiabosses:entity/sunflower/jin"
+    ]
+  },
+  "entity.sunflower.yuan": {
+    "subtitle": "subtitles.entity.sunflower.yuan",
+    "sounds": [
+      "utopiabosses:entity/sunflower/yuan"
+    ]
+  },
+  "entity.sunflower.dan_mu": {
+    "subtitle": "subtitles.entity.sunflower.dan_mu",
+    "sounds": [
+      "utopiabosses:entity/sunflower/dan_mu"
+    ]
+  },
+  "entity.sunflower.sun_chuxian": {
+    "subtitle": "subtitles.entity.sunflower.sun_chuxian",
+    "sounds": [
+      "utopiabosses:entity/sunflower/sun_chuxian"
+    ]
+  },
+  "entity.sunflower.sun_xishou": {
+    "subtitle": "subtitles.entity.sunflower.sun_xishou",
+    "sounds": [
+      "utopiabosses:entity/sunflower/sun_xishou"
+    ]
   }
 } 

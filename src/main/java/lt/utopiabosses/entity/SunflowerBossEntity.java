@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.ArrayList;
 import net.minecraft.entity.ItemEntity;
-
+import lt.utopiabosses.registry.SoundRegistry;
 public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
     
@@ -364,9 +364,9 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                                 fireSeedBarrage(seedTarget);
                             }
                             
-                            // 播放发射音效
+                            // 播放弹幕技能音效
                             this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-                                SoundEvents.ENTITY_BLAZE_SHOOT, SoundCategory.HOSTILE, 1.0f, 1.0f);
+                                SoundRegistry.ENTITY_SUNFLOWER_DANMU, SoundCategory.HOSTILE, 2.0f, 1.0f);
                         }
                     }
                     break;
@@ -423,7 +423,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                             
                             // 播放攻击音效
                             this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-                                SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.HOSTILE, 1.0f, 0.8f);
+                                SoundRegistry.ENTITY_SUNFLOWER_JIN, SoundCategory.HOSTILE, 2.0f, 0.8f);
                         }
                     }
                     break;
@@ -1248,8 +1248,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 
                 // 播放生成音效
                 this.getWorld().playSound(null, x, y, z,
-                    SoundEvents.BLOCK_BEACON_ACTIVATE,
-                    SoundCategory.HOSTILE, 1.0f, 1.5f);
+                    SoundRegistry.ENTITY_SUNFLOWER_SUN_SPAWN, SoundCategory.HOSTILE, 2.0f, 1.5f);
             } catch (Exception e) {
                 System.out.println("生成太阳实体失败: " + e.getMessage());
                 e.printStackTrace();
@@ -1446,6 +1445,10 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         SoundCategory.HOSTILE, 0.8f, 1.8f // 提高音调使音效更短
                     );
                 }
+                
+                // 播放太阳吸收音效
+                this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+                    SoundRegistry.ENTITY_SUNFLOWER_SUN_HEAL, SoundCategory.HOSTILE, 2.0f, 1.8f);
                 
                 System.out.println("太阳实体已被立即吸收和移除，剩余数量: " + suns.size());
             } catch (Exception e) {
@@ -1725,9 +1728,9 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 // 发射单个种子
                 fireSimpleSeed(target);
                 
-                // 播放发射音效
+                // 播放远程攻击音效
                 this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-                    SoundEvents.ENTITY_BLAZE_SHOOT, SoundCategory.HOSTILE, 1.0f, 1.2f);
+                    SoundRegistry.ENTITY_SUNFLOWER_YUAN, SoundCategory.HOSTILE, 2.0f, 1.0f);
             }
         }
     }

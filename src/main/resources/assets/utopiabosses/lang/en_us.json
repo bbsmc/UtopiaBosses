@@ -23,6 +23,13 @@
   "item.utopiabosses.sunflower_seed": "Sunflower Seed",
   "item.utopiabosses.cooked_sunflower_seed": "Cooked Sunflower Seed",
   "item.utopiabosses.sunflower_natural_essence": "Sunflower Natural Essence",
-  "block.utopiabosses.nature_altar": "自然祭坛"
+  "block.utopiabosses.nature_altar": "Nature Altar",
+  
+  "subtitles.entity.utopiabosses.sunflower_boss.ambient": "Sunflower Boss: Whispering",
+  "subtitles.entity.utopiabosses.sunflower_boss.hurt": "Sunflower Boss: Hurt",
+  "subtitles.entity.utopiabosses.sunflower_boss.death": "Sunflower Boss: Death",
+  "subtitles.entity.utopiabosses.sunflower_boss.attack": "Sunflower Boss: Attack",
+  "subtitles.block.utopiabosses.nature_altar.activate": "Nature Altar: Activate",
+  "subtitles.item.gatling.fire": "Gatling: Fire"
 
 } 

@@ -25,10 +25,10 @@
   "item.utopiabosses.sunflower_natural_essence": "向日葵自然精华",
   "block.utopiabosses.nature_altar": "自然祭坛",
   
-  "subtitles.entity.utopiabosses.sunflower_boss.ambient": "向日葵BOSS：嘶嘶声",
-  "subtitles.entity.utopiabosses.sunflower_boss.hurt": "向日葵BOSS：受伤",
-  "subtitles.entity.utopiabosses.sunflower_boss.death": "向日葵BOSS：死亡",
-  "subtitles.entity.utopiabosses.sunflower_boss.attack": "向日葵BOSS：攻击",
-  "subtitles.block.utopiabosses.nature_altar.activate": "自然祭坛：激活",
-  "subtitles.item.gatling.fire": "加特林：射击"
+  "subtitles.item.gatling.fire": "加特林：射击",
+  "subtitles.entity.utopiabosses.sunflower.jin": "向日葵：近战",
+  "subtitles.entity.utopiabosses.sunflower.yuan": "向日葵：远程",
+  "subtitles.entity.utopiabosses.sunflower.dan_mu": "向日葵：弹幕",
+  "subtitles.entity.utopiabosses.sunflower.sun_chuxian": "向日葵：激光-太阳生成",
+  "subtitles.entity.utopiabosses.sunflower.sun_xishou": "向日葵：激光-太阳回血"
 }
