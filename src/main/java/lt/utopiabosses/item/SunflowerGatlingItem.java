@@ -57,12 +57,6 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
     // 发射冷却时间，单位tick
     private static final int FIRE_COOLDOWN = 2;
 
-    // 物品切换时标记
-    private static final String LAST_SELECTED_TICK = "LastSelectedTick";
-    private static final String INITIALIZED = "Initialized";
-    private static final String FIRST_PERSON_INITIALIZED = "FirstPersonInitialized";
-    private static final String WAS_FIRST_PERSON = "WasFirstPerson";
-
     // GeckoLib动画缓存
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
@@ -243,54 +237,39 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
         
         // 客户端处理
         if (world.isClient && entity instanceof PlayerEntity player) {
-            NbtCompound nbt = stack.getOrCreateNbt();
-            boolean isFirstPerson = MinecraftClient.getInstance().options.getPerspective().isFirstPerson();
             MinecraftClient client = MinecraftClient.getInstance();
             
-            // 标记当前tick如果物品被选中
+            // 只处理选中的物品或刚刚被取消选中的物品
+            boolean wasSelected = stack.getOrCreateNbt().getBoolean("WasSelected");
+            
             if (selected) {
-                // 获取上次选中的tick
-                long lastSelectedTick = nbt.getLong(LAST_SELECTED_TICK);
-                long currentTick = world.getTime();
+                // 物品被选中时的处理
+                boolean isFirstPerson = client.options.getPerspective().isFirstPerson();
                 
-                // 记录当前tick为最后选中时间
-                nbt.putLong(LAST_SELECTED_TICK, currentTick);
+                // 物品刚被选中或视角切换时，强制初始化渲染
+                boolean needsInit = !wasSelected || 
+                                   isFirstPerson != stack.getOrCreateNbt().getBoolean("WasFirstPerson");
                 
-                // 检查是否是刚刚被选中（之前未选中或者上次选中时间距离现在超过5tick）
-                if (currentTick - lastSelectedTick > 5) {
-                    // 重置初始化标记，强制重新初始化
-                    nbt.putBoolean(INITIALIZED, false);
-                    nbt.putBoolean(FIRST_PERSON_INITIALIZED, false);
-                    
-                    // 立即触发初始动画以更新渲染
-                    triggerAnim(player, 0, CONTROLLER_NAME, IDLE_ANIM);
-                    
-                    // 强制重置手部渲染
-                    client.gameRenderer.firstPersonRenderer.resetEquipProgress(Hand.MAIN_HAND);
-                    client.gameRenderer.firstPersonRenderer.resetEquipProgress(Hand.OFF_HAND);
+                // 获取正确的animationID - 客户端使用随机ID
+                long animationID = selected ? getClientAnimationId(stack) : 0;
+                
+                // 当选中时标记为已选中
+                if (!wasSelected) {
+                    stack.getOrCreateNbt().putBoolean("WasSelected", true);
                 }
                 
-                // 正常初始化逻辑
-                boolean needsInit = !nbt.getBoolean(INITIALIZED) || 
-                                   (isFirstPerson && !nbt.getBoolean(FIRST_PERSON_INITIALIZED));
-                
+                // 初始化或视角切换时更新渲染状态
                 if (needsInit) {
-                    nbt.putBoolean(INITIALIZED, true);
+                    // 记录当前视角状态
+                    stack.getOrCreateNbt().putBoolean("WasFirstPerson", isFirstPerson);
                     
-                    if (isFirstPerson) {
-                        nbt.putBoolean(FIRST_PERSON_INITIALIZED, true);
-                    }
+                    // 强制触发动画
+                    triggerAnim(player, animationID, CONTROLLER_NAME, IDLE_ANIM);
                     
-                    // 触发初始动画
-                    triggerAnim(player, 0, CONTROLLER_NAME, IDLE_ANIM);
-                    
-                    // 强制更新第一人称渲染
+                    // 重置渲染状态
                     client.gameRenderer.firstPersonRenderer.resetEquipProgress(Hand.MAIN_HAND);
                     client.gameRenderer.firstPersonRenderer.resetEquipProgress(Hand.OFF_HAND);
                 }
-                
-                // 检测视角变化
-                checkViewChange(stack, player, isFirstPerson);
                 
                 // 检测按键输入并发送网络包
                 if (client.options.useKey.isPressed()) {
@@ -299,27 +278,33 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
                     buf.writeBoolean(true);
                     ClientPlayNetworking.send(NetworkHandler.SHOOT_GATLING_PACKET_ID, buf);
                 }
+            } else if (wasSelected) {
+                // 物品刚被取消选中，更新状态
+                stack.getOrCreateNbt().putBoolean("WasSelected", false);
             }
         }
     }
     
     /**
-     * 检查视角变化并处理
+     * 获取客户端动画ID - 确保ID一致性
      */
-    private void checkViewChange(ItemStack stack, PlayerEntity player, boolean isFirstPerson) {
+    private long getClientAnimationId(ItemStack stack) {
         NbtCompound nbt = stack.getOrCreateNbt();
-        boolean wasFirstPerson = nbt.getBoolean(WAS_FIRST_PERSON);
+        if (!nbt.contains("ClientAnimID")) {
+            // 为这个物品实例分配唯一ID
+            nbt.putLong("ClientAnimID", stack.hashCode());
+        }
+        return nbt.getLong("ClientAnimID");
+    }
+    
+    @Override
+    public void onStoppedUsing(ItemStack stack, World world, LivingEntity user, int remainingUseTicks) {
+        super.onStoppedUsing(stack, world, user, remainingUseTicks);
         
-        if (isFirstPerson != wasFirstPerson) {
-            nbt.putBoolean(WAS_FIRST_PERSON, isFirstPerson);
-            
-            // 视角变化时重新触发动画
-            triggerAnim(player, 0, CONTROLLER_NAME, IDLE_ANIM);
-            
-            // 强制更新渲染
-            MinecraftClient client = MinecraftClient.getInstance();
-            client.gameRenderer.firstPersonRenderer.resetEquipProgress(Hand.MAIN_HAND);
-            client.gameRenderer.firstPersonRenderer.resetEquipProgress(Hand.OFF_HAND);
+        // 确保在停止使用物品时动画回到空闲状态
+        if (world.isClient && user instanceof PlayerEntity player) {
+            long animationID = getClientAnimationId(stack);
+            triggerAnim(player, animationID, CONTROLLER_NAME, IDLE_ANIM);
         }
     }
 
@@ -375,16 +360,24 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             PlayerEntity player = client.player;
             if (player != null && !player.isSpectator()) {
-                ItemStack mainHandStack = player.getMainHandStack();
-                if (mainHandStack.getItem() instanceof SunflowerGatlingItem) {
-                    // 检查键盘状态并发送网络包
-                    if (client.options.useKey.isPressed()) {
-                        PacketByteBuf buf = PacketByteBufs.create();
-                        buf.writeBoolean(true);
-                        ClientPlayNetworking.send(NetworkHandler.SHOOT_GATLING_PACKET_ID, buf);
-                    }
+                ItemStack stack = player.getMainHandStack();
+                if (stack.getItem() instanceof SunflowerGatlingItem) {
+                    // 避免重复发送网络包，已在inventoryTick中处理
                 }
             }
         });
+    }
+
+    // 添加物品切换事件
+    @Override
+    public boolean allowNbtUpdateAnimation(PlayerEntity player, Hand hand, ItemStack oldStack, ItemStack newStack) {
+        // 确保物品切换时能够正确触发物品重置状态
+        if (oldStack.getItem() == this && !oldStack.equals(newStack)) {
+            if (player.getWorld().isClient) {
+                // 清除状态标记，确保再次被选中时重新初始化
+                oldStack.getOrCreateNbt().putBoolean("WasSelected", false);
+            }
+        }
+        return super.allowNbtUpdateAnimation(player, hand, oldStack, newStack);
     }
 }
