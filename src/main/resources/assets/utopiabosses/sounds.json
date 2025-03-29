@@ -1,0 +1,8 @@
+{
+  "item.gatling.fire": {
+    "subtitle": "subtitles.item.gatling.fire",
+    "sounds": [
+      "utopiabosses:item/gatling/fire"
+    ]
+  }
+} 

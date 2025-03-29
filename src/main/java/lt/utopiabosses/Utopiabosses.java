@@ -6,6 +6,7 @@ import lt.utopiabosses.registry.BlockEntityRegistry;
 import lt.utopiabosses.registry.BlockRegistry;
 import lt.utopiabosses.registry.EntityRegistry;
 import lt.utopiabosses.registry.ItemRegistry;
+import lt.utopiabosses.registry.SoundRegistry;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +34,10 @@ public class Utopiabosses implements ModInitializer {
         EntityRegistry.registerEntities();
         EntityRegistry.registerEntityAttributes();
         
-        // 4. 最后注册物品
+        // 4. 注册音效
+        SoundRegistry.registerSounds();
+        
+        // 5. 最后注册物品
         ItemRegistry.registerItems();
         
         // 注册网络处理器

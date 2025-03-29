@@ -3,6 +3,7 @@ package lt.utopiabosses.item;
 import lt.utopiabosses.client.renderer.item.SunflowerGatlingRenderer;
 import lt.utopiabosses.entity.SunflowerSeedEntity;
 import lt.utopiabosses.network.NetworkHandler;
+import lt.utopiabosses.registry.SoundRegistry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.item.BuiltinModelItemRenderer;
 import net.minecraft.entity.Entity;
@@ -132,7 +133,7 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
             
             // 播放射击音效
             world.playSound(null, user.getX(), user.getY(), user.getZ(),
-                SoundEvents.ENTITY_SNOWBALL_THROW, SoundCategory.PLAYERS, 0.5F, 
+                SoundRegistry.ITEM_GATLING_GUN_FIRE, SoundCategory.PLAYERS, 0.5F, 
                 0.4F / (world.getRandom().nextFloat() * 0.4F + 0.8F));
             
             // 触发射击动画

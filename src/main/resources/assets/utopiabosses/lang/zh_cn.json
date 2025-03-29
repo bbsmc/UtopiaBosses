@@ -23,5 +23,12 @@
   "item.utopiabosses.sunflower_seed": "葵花籽",
   "item.utopiabosses.cooked_sunflower_seed": "熟葵花籽",
   "item.utopiabosses.sunflower_natural_essence": "向日葵自然精华",
-  "block.utopiabosses.nature_altar": "自然祭坛"
+  "block.utopiabosses.nature_altar": "自然祭坛",
+  
+  "subtitles.entity.utopiabosses.sunflower_boss.ambient": "向日葵BOSS：嘶嘶声",
+  "subtitles.entity.utopiabosses.sunflower_boss.hurt": "向日葵BOSS：受伤",
+  "subtitles.entity.utopiabosses.sunflower_boss.death": "向日葵BOSS：死亡",
+  "subtitles.entity.utopiabosses.sunflower_boss.attack": "向日葵BOSS：攻击",
+  "subtitles.block.utopiabosses.nature_altar.activate": "自然祭坛：激活",
+  "subtitles.item.gatling.fire": "加特林：射击"
 }
