@@ -2297,9 +2297,9 @@
 				}
 			}
 		},
-		"双臂插入地表": {
+		"skill_insert_both_arms_into_the_ground_surface": {
 			"loop": "hold_on_last_frame",
-			"animation_length": 5.1667,
+			"animation_length": 5.125,
 			"bones": {
 				"root": {
 					"rotation": {

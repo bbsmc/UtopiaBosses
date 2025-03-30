@@ -21,6 +21,7 @@ import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
@@ -41,6 +42,7 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
 import java.util.Random;
+import java.util.ArrayList;
 
 public class TreeBoss extends HostileEntity implements GeoEntity {
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
@@ -58,6 +60,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private static final RawAnimation DIE_ANIM = RawAnimation.begin().then("die", Animation.LoopType.PLAY_ONCE);
     private static final RawAnimation STOMP_ANIM = RawAnimation.begin().then("skill_stomping_feet", Animation.LoopType.PLAY_ONCE);
     private static final RawAnimation GRAB_ANIM = RawAnimation.begin().then("skill_grab_with_the_left_hand", Animation.LoopType.PLAY_ONCE);
+    private static final RawAnimation VINES_ANIM = RawAnimation.begin().then("skill_insert_both_arms_into_the_ground_surface", Animation.LoopType.PLAY_ONCE);
     
     // 添加BOSS血条
     private final ServerBossBar bossBar;
@@ -69,6 +72,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private static final TrackedData<Boolean> IS_DYING = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Boolean> IS_STOMPING = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Boolean> IS_GRABBING = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
+    private static final TrackedData<Boolean> IS_SUMMONING_VINES = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
     
     // 攻击相关属性
     private int attackCooldown = 0;
@@ -77,9 +81,17 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private int deathTicks = 0;
     private int stompTicks = 0;
     private int grabTicks = 0;
+    private int vinesTicks = 0;
     private int attackCounter = 0; // 攻击计数器，每4次普通攻击触发一次跺脚
     private PlayerEntity grabbedPlayer = null; // 被抓取的玩家
     private boolean hasThrown = false; // 是否已经投掷玩家
+    
+    // 藤曼相关属性
+    private List<PlayerEntity> snaredPlayers = new ArrayList<>(); // 被禁锢的玩家
+    private List<PlayerEntity> slowedPlayers = new ArrayList<>(); // 被减速的玩家
+    private int vinesHealTicks = 0; // 回血计时器
+    private int vinesDamageTicks = 0; // 伤害计时器
+    private boolean vinesSpawned = false; // 藤曼是否已经生成
     
     // 攻击类型枚举
     private enum AttackType {
@@ -91,12 +103,13 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     // 技能类型枚举
     public enum SkillType {
         STOMP,  // 跺脚技能
-        GRAB    // 抓取技能
+        GRAB,   // 抓取技能
+        VINES   // 藤曼技能
     }
     
     public TreeBoss(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
-        TreeBoss.setDebugFixedSkill(TreeBoss.SkillType.GRAB);
+        TreeBoss.setDebugFixedSkill(TreeBoss.SkillType.VINES);
 
         this.bossBar = new ServerBossBar(
             Text.literal("树木BOSS").formatted(Formatting.GREEN),
@@ -107,7 +120,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     
     public static DefaultAttributeContainer.Builder createAttributes() {
         return HostileEntity.createHostileAttributes()
-                .add(EntityAttributes.GENERIC_MAX_HEALTH, 250.0D)
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 500.0D)
                 .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 8.0D)
                 .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.3D) // 提高移动速度
                 .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, 1.0D)
@@ -144,10 +157,24 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         this.dataTracker.startTracking(IS_DYING, false);
         this.dataTracker.startTracking(IS_STOMPING, false);
         this.dataTracker.startTracking(IS_GRABBING, false);
+        this.dataTracker.startTracking(IS_SUMMONING_VINES, false);
     }
 
     @Override
     public void tick() {
+        // 保存当前的视角方向
+        float savedYaw = this.getYaw();
+        float savedPitch = this.getPitch();
+        float savedBodyYaw = this.bodyYaw;
+        float savedHeadYaw = this.headYaw;
+        
+        // 判断是否正在播放任何动画
+        boolean isPlayingAnimation = this.dataTracker.get(IS_DYING) || 
+                                    this.dataTracker.get(IS_SUMMONING_VINES) ||
+                                    this.dataTracker.get(IS_GRABBING) ||
+                                    this.dataTracker.get(IS_STOMPING) ||
+                                    this.dataTracker.get(ATTACK_TYPE) != AttackType.NONE.ordinal();
+        
         // 如果正在播放死亡动画
         if (this.dataTracker.get(IS_DYING)) {
             // 增加死亡计时器
@@ -155,22 +182,123 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             
             // 使实体静止不动
             this.setVelocity(0, 0, 0);
-            this.setYaw(this.prevYaw);
-            this.setPitch(this.prevPitch);
-            this.setBodyYaw(this.prevBodyYaw);
-            this.setHeadYaw(this.prevHeadYaw);
             
-            // 禁用AI和物理碰撞
+            // 完全禁用所有物理效果
             this.setNoGravity(true);
+            this.setInvulnerable(true);
+            this.fallDistance = 0; // 防止摔落效果
             
             // 如果死亡动画完成（1.83秒，约37帧）
             if (deathTicks >= 37) {
+                // 清理血条
+                if (bossBar != null) {
+                    bossBar.clearPlayers();
+                }
+                
                 // 实际移除实体
                 this.remove(Entity.RemovalReason.KILLED);
                 return;
             }
             
+            // 必须在子类中调用super.tick()，但我们确保不运行原版死亡代码
+            super.tick();
+            
+            // 固定视角方向
+            this.setYaw(savedYaw);
+            this.setPitch(savedPitch);
+            this.bodyYaw = savedBodyYaw;
+            this.headYaw = savedHeadYaw;
+            
             return; // 跳过正常的tick逻辑
+        }
+        
+        // 如果正在召唤藤曼
+        if (this.dataTracker.get(IS_SUMMONING_VINES)) {
+            // 增加技能计时器
+            vinesTicks++;
+            
+            // 在1.5秒时生成藤曼
+            if (vinesTicks == 30 && !this.getWorld().isClient()) {
+                spawnVines();
+                vinesSpawned = true;
+            }
+            
+            // 在1.5-4.5秒期间回血
+            if (vinesTicks >= 30 && vinesTicks <= 90 && !this.getWorld().isClient()) {
+                vinesHealTicks++;
+                
+                // 每秒回复5颗心（10点）生命值
+                if (vinesHealTicks >= 20) {
+                    heal(10.0F);
+                    vinesHealTicks = 0;
+                    
+                    // 播放回血音效和粒子效果
+                    this.getWorld().playSound(
+                        null, 
+                        this.getX(), this.getY(), this.getZ(),
+                        SoundEvents.ENTITY_PLAYER_LEVELUP,
+                        SoundCategory.HOSTILE, 
+                        0.5F, 
+                        1.5F
+                    );
+                }
+            }
+            
+            // 对藤曼范围内的玩家造成伤害和控制效果
+            if (vinesSpawned && !this.getWorld().isClient()) {
+                // 每10tick处理一次藤曼效果
+                if (vinesTicks % 10 == 0) {
+                    updateVinesEffects();
+                }
+                
+                // 对被禁锢的玩家施加伤害
+                vinesDamageTicks++;
+                if (!snaredPlayers.isEmpty() && vinesDamageTicks >= 10) { // 每0.5秒一次伤害
+                    for (PlayerEntity player : snaredPlayers) {
+                        if (!player.isRemoved() && !player.isDead()) {
+                            // 造成3颗心（6点）伤害
+                            player.damage(this.getDamageSources().mobAttack(this), 6.0F);
+                            
+                            // 播放伤害音效
+                            this.getWorld().playSound(
+                                null, 
+                                player.getX(), player.getY(), player.getZ(),
+                                SoundEvents.BLOCK_SWEET_BERRY_BUSH_PICK_BERRIES,
+                                SoundCategory.HOSTILE, 
+                                1.0F, 
+                                0.8F
+                            );
+                        }
+                    }
+                    vinesDamageTicks = 0;
+                }
+            }
+            
+            // 在5秒后移除藤曼
+            if (vinesTicks == 100 && !this.getWorld().isClient()) {
+                removeVines();
+            }
+            
+            // 检查动画是否结束（5.125秒，约102-103帧）
+            if (vinesTicks >= 103) {
+                // 重置技能状态
+                this.dataTracker.set(IS_SUMMONING_VINES, false);
+                vinesTicks = 0;
+                vinesSpawned = false;
+                vinesHealTicks = 0;
+                vinesDamageTicks = 0;
+                attackCooldown = 80; // 设置技能后的冷却时间
+            }
+            
+            super.tick();
+            
+            // 固定视角方向
+            this.setYaw(savedYaw);
+            this.setPitch(savedPitch);
+            this.bodyYaw = savedBodyYaw;
+            this.headYaw = savedHeadYaw;
+            
+            return;
         }
         
         // 如果正在执行抓取技能
@@ -204,8 +332,14 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 attackCooldown = 60; // 设置技能后的冷却时间
             }
             
-            // 不需要执行后续的逻辑
             super.tick();
+            
+            // 固定视角方向
+            this.setYaw(savedYaw);
+            this.setPitch(savedPitch);
+            this.bodyYaw = savedBodyYaw;
+            this.headYaw = savedHeadYaw;
+            
             return;
         }
         
@@ -227,8 +361,14 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 attackCooldown = 40; // 设置技能后的冷却时间
             }
             
-            // 不需要执行后续的逻辑
             super.tick();
+            
+            // 固定视角方向
+            this.setYaw(savedYaw);
+            this.setPitch(savedPitch);
+            this.bodyYaw = savedBodyYaw;
+            this.headYaw = savedHeadYaw;
+            
             return;
         }
         
@@ -265,6 +405,12 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
                     animationTicks = 0;
                 }
+                
+                // 固定视角方向
+                this.setYaw(savedYaw);
+                this.setPitch(savedPitch);
+                this.bodyYaw = savedBodyYaw;
+                this.headYaw = savedHeadYaw;
             } else {
                 animationTicks = 0;
             }
@@ -625,6 +771,11 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
      */
     private void useGrabAttack() {
         if (!this.getWorld().isClient()) {
+            // 确保BOSS面向目标
+            if (this.getTarget() != null) {
+                faceEntity(this.getTarget());
+            }
+            
             // 设置抓取状态
             this.dataTracker.set(IS_GRABBING, true);
             this.grabTicks = 0;
@@ -650,6 +801,11 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
      */
     private void useStompAttack() {
         if (!this.getWorld().isClient()) {
+            // 确保BOSS面向目标
+            if (this.getTarget() != null) {
+                faceEntity(this.getTarget());
+            }
+            
             // 设置跺脚状态
             this.dataTracker.set(IS_STOMPING, true);
             this.stompTicks = 0;
@@ -667,6 +823,53 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 0.8F
             );
         }
+    }
+    
+    /**
+     * 使用藤曼技能
+     */
+    private void useVinesAttack() {
+        if (!this.getWorld().isClient()) {
+            // 确保BOSS面向目标
+            if (this.getTarget() != null) {
+                faceEntity(this.getTarget());
+            }
+            
+            // 设置藤曼状态
+            this.dataTracker.set(IS_SUMMONING_VINES, true);
+            this.vinesTicks = 0;
+            this.vinesSpawned = false;
+            this.vinesHealTicks = 0;
+            this.vinesDamageTicks = 0;
+            
+            // 重置攻击状态
+            this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
+            
+            // 播放准备音效
+            this.getWorld().playSound(
+                null, 
+                this.getX(), this.getY(), this.getZ(),
+                SoundEvents.ENTITY_EVOKER_PREPARE_SUMMON,
+                SoundCategory.HOSTILE, 
+                1.0F, 
+                0.6F
+            );
+        }
+    }
+    
+    /**
+     * 让BOSS面向指定实体
+     */
+    private void faceEntity(Entity entity) {
+        // 计算BOSS和目标之间的向量
+        double dx = entity.getX() - this.getX();
+        double dz = entity.getZ() - this.getZ();
+        float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0F;
+        
+        // 设置面向目标的视角
+        this.setYaw(yaw);
+        this.setHeadYaw(yaw);
+        this.setBodyYaw(yaw);
     }
     
     /**
@@ -746,6 +949,13 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             return PlayState.CONTINUE;
         }
         
+        // 检查是否正在召唤藤曼
+        if (this.dataTracker.get(IS_SUMMONING_VINES)) {
+            // 播放藤曼动画
+            state.getController().setAnimation(VINES_ANIM);
+            return PlayState.CONTINUE;
+        }
+        
         // 检查是否正在执行抓取技能
         if (this.dataTracker.get(IS_GRABBING)) {
             // 播放抓取动画
@@ -797,6 +1007,9 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         // 增加攻击计数
         attackCounter++;
         
+        // 首先面向目标
+        faceEntity(target);
+        
         // 判断是否达到技能触发条件（第4次或第7次攻击）
         boolean shouldUseSkill = (attackCounter >= 4);
         
@@ -812,14 +1025,22 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     useStompAttack();
                 } else if (DEBUG_FIXED_SKILL == SkillType.GRAB) {
                     useGrabAttack();
+                } else if (DEBUG_FIXED_SKILL == SkillType.VINES) {
+                    useVinesAttack();
                 }
             } else {
                 // 使用随机技能逻辑
-                // 第7次攻击触发抓取, 第4次攻击触发跺脚
-                if (attackCounter >= 7) {
-                    useGrabAttack();
-                } else if (attackCounter >= 4) {
-                    useStompAttack();
+                int skillChoice = random.nextInt(3); // 0-2的随机数
+                switch (skillChoice) {
+                    case 0:
+                        useStompAttack();
+                        break;
+                    case 1:
+                        useGrabAttack();
+                        break;
+                    case 2:
+                        useVinesAttack();
+                        break;
                 }
             }
             return true;
@@ -860,6 +1081,19 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     // 覆盖原版的死亡方法
     @Override
     public void onDeath(net.minecraft.entity.damage.DamageSource source) {
+        // 确保BOSS面向最后的攻击者或玩家
+        if (source.getAttacker() != null) {
+            faceEntity(source.getAttacker());
+        } else if (this.getTarget() != null) {
+            faceEntity(this.getTarget());
+        } else {
+            // 如果没有明确的目标，尝试找到最近的玩家
+            PlayerEntity closestPlayer = this.getWorld().getClosestPlayer(this, 32.0);
+            if (closestPlayer != null) {
+                faceEntity(closestPlayer);
+            }
+        }
+        
         // 不调用super.onDeath()来防止默认的死亡效果
         
         // 标记为正在死亡
@@ -869,10 +1103,13 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         // 禁用AI
         this.setAiDisabled(true);
         
+        // 设置为无敌状态，防止其他伤害打断死亡动画
+        this.setInvulnerable(true);
         
-        // 必须调用以确保游戏机制正确处理死亡
-        this.setHealth(0.0F);
-        this.onRemoved();
+        // 设置生命值为1而不是0，防止触发原版死亡效果
+        this.setHealth(1.0F);
+        
+        // 不要调用onRemoved()，它会立即清理血条
     }
     
     // 覆盖移除方法
@@ -880,11 +1117,31 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     public void remove(Entity.RemovalReason reason) {
         // 只有在不是因为死亡或者已经完成死亡动画时才执行移除
         if (reason != Entity.RemovalReason.KILLED || deathTicks >= 37) {
+            // 如果是死亡动画结束，确保清理血条
+            if (reason == Entity.RemovalReason.KILLED && deathTicks >= 37 && bossBar != null) {
+                bossBar.clearPlayers();
+            }
             super.remove(reason);
         }
     }
     
-    // 死亡时清理血条
+    // 覆盖默认的获取死亡声音方法，返回null以禁用死亡声音
+    @Override
+    protected net.minecraft.sound.SoundEvent getDeathSound() {
+        return null;
+    }
+    
+    // 覆盖受伤方法，在死亡动画播放时不显示受伤效果
+    @Override
+    public boolean damage(net.minecraft.entity.damage.DamageSource source, float amount) {
+        // 如果正在死亡，完全阻止所有伤害
+        if (this.dataTracker.get(IS_DYING)) {
+            return false;
+        }
+        return super.damage(source, amount);
+    }
+    
+    // 死亡时清理血条-这个方法不再直接从onDeath调用
     @Override
     public void onRemoved() {
         if (bossBar != null) {
@@ -900,5 +1157,238 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     public static void setDebugFixedSkill(SkillType skillType) {
         DEBUG_FIXED_SKILL = skillType;
         System.out.println("TreeBoss调试模式: " + (skillType == null ? "随机技能" : skillType));
+    }
+
+    /**
+     * 生成藤曼
+     */
+    private void spawnVines() {
+        if (!this.getWorld().isClient()) {
+            // 清空之前的玩家列表
+            snaredPlayers.clear();
+            slowedPlayers.clear();
+            
+            // 播放藤曼生成音效
+            this.getWorld().playSound(
+                null, 
+                this.getX(), this.getY(), this.getZ(),
+                SoundEvents.BLOCK_GRASS_BREAK,
+                SoundCategory.HOSTILE, 
+                2.0F, 
+                0.6F
+            );
+            
+            // 生成藤曼粒子效果
+            spawnVinesParticles();
+            
+            // 应用初始减速效果
+            applySlowEffectToNearbyPlayers();
+        }
+    }
+    
+    /**
+     * 移除藤曼
+     */
+    private void removeVines() {
+        if (!this.getWorld().isClient()) {
+            // 移除所有玩家的控制效果
+            for (PlayerEntity player : slowedPlayers) {
+                if (!player.isRemoved() && !player.isDead()) {
+                    player.removeStatusEffect(net.minecraft.entity.effect.StatusEffects.SLOWNESS);
+                }
+            }
+            
+            for (PlayerEntity player : snaredPlayers) {
+                if (!player.isRemoved() && !player.isDead()) {
+                    // 移除禁锢效果
+                    removeSnareEffect(player);
+                }
+            }
+            
+            // 清空列表
+            snaredPlayers.clear();
+            slowedPlayers.clear();
+            
+            // 播放藤曼消失音效
+            this.getWorld().playSound(
+                null, 
+                this.getX(), this.getY(), this.getZ(),
+                SoundEvents.BLOCK_GRASS_PLACE,
+                SoundCategory.HOSTILE, 
+                1.5F, 
+                0.7F
+            );
+        }
+    }
+    
+    /**
+     * 更新藤曼效果
+     */
+    private void updateVinesEffects() {
+        // 首先应用减速效果到范围内的玩家
+        applySlowEffectToNearbyPlayers();
+        
+        // 然后检查哪些玩家需要被禁锢
+        if (vinesTicks >= 60) { // 3秒后开始禁锢效果
+            for (PlayerEntity player : slowedPlayers) {
+                if (!player.isRemoved() && !player.isDead() && !snaredPlayers.contains(player)) {
+                    // 应用禁锢效果
+                    applySnareEffect(player);
+                    snaredPlayers.add(player);
+                    
+                    // 播放禁锢音效
+                    this.getWorld().playSound(
+                        null, 
+                        player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.BLOCK_VINE_BREAK,
+                        SoundCategory.HOSTILE, 
+                        1.0F, 
+                        0.5F
+                    );
+                }
+            }
+        }
+    }
+    
+    /**
+     * 对附近玩家应用减速效果
+     */
+    private void applySlowEffectToNearbyPlayers() {
+        // 获取8格内的所有玩家
+        Box searchBox = this.getBoundingBox().expand(8.0, 3.0, 8.0);
+        List<PlayerEntity> nearbyPlayers = this.getWorld().getNonSpectatingEntities(PlayerEntity.class, searchBox);
+        
+        // 过滤掉创造模式的玩家
+        nearbyPlayers.removeIf(player -> player.isCreative() || player.isSpectator());
+        
+        // 应用减速效果
+        for (PlayerEntity player : nearbyPlayers) {
+            player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+                net.minecraft.entity.effect.StatusEffects.SLOWNESS, 
+                30, // 持续1.5秒
+                2, // 减速3级
+                false, // 不显示粒子
+                true, // 显示图标
+                true // 可见
+            ));
+            
+            // 添加到已减速列表
+            if (!slowedPlayers.contains(player)) {
+                slowedPlayers.add(player);
+            }
+            
+            // 在玩家周围生成粒子
+            spawnVineParticlesAround(player);
+        }
+    }
+    
+    /**
+     * 应用禁锢效果
+     */
+    private void applySnareEffect(PlayerEntity player) {
+        // 禁锢效果通过强力减速和挖掘疲劳实现
+        player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+            net.minecraft.entity.effect.StatusEffects.SLOWNESS, 
+            40, // 持续2秒
+            6, // 减速7级 (几乎无法移动)
+            false, 
+            true, 
+            true
+        ));
+        
+        player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+            net.minecraft.entity.effect.StatusEffects.MINING_FATIGUE, 
+            40, // 持续2秒
+            4, // 5级挖掘疲劳
+            false, 
+            true, 
+            true
+        ));
+        
+        player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+            net.minecraft.entity.effect.StatusEffects.WEAKNESS, 
+            40, // 持续2秒
+            2, // 3级虚弱
+            false, 
+            true, 
+            true
+        ));
+    }
+    
+    /**
+     * 移除禁锢效果
+     */
+    private void removeSnareEffect(PlayerEntity player) {
+        player.removeStatusEffect(net.minecraft.entity.effect.StatusEffects.SLOWNESS);
+        player.removeStatusEffect(net.minecraft.entity.effect.StatusEffects.MINING_FATIGUE);
+        player.removeStatusEffect(net.minecraft.entity.effect.StatusEffects.WEAKNESS);
+    }
+    
+    /**
+     * 生成藤曼粒子效果
+     */
+    private void spawnVinesParticles() {
+        // 在服务端计算粒子位置，然后发送到客户端
+        if (!this.getWorld().isClient()) {
+            // 计算12根藤曼的位置
+            for (int i = 0; i < 12; i++) {
+                // 计算角度
+                double angle = Math.toRadians(i * 30); // 每30度一根藤曼
+                
+                // 藤曼向外延伸8格
+                for (int distance = 1; distance <= 8; distance++) {
+                    // 计算藤曼上的位置
+                    double x = this.getX() + Math.cos(angle) * distance;
+                    double z = this.getZ() + Math.sin(angle) * distance;
+                    
+                    // 发送粒子效果到客户端
+                    ((ServerWorld)this.getWorld()).spawnParticles(
+                        net.minecraft.particle.ParticleTypes.HAPPY_VILLAGER, // 使用绿色粒子
+                        x, 
+                        this.getY() + 0.2, 
+                        z, 
+                        5, // 粒子数量
+                        0.2, // X轴扩散
+                        0.1, // Y轴扩散
+                        0.2, // Z轴扩散
+                        0.01 // 粒子速度
+                    );
+                    
+                    // 添加一些额外的藤曼粒子
+                    if (distance % 2 == 0) {
+                        ((ServerWorld)this.getWorld()).spawnParticles(
+                            net.minecraft.particle.ParticleTypes.COMPOSTER, 
+                            x, 
+                            this.getY() + 0.4, 
+                            z, 
+                            3,
+                            0.2, 
+                            0.1, 
+                            0.2, 
+                            0.01
+                        );
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * 在玩家周围生成藤曼粒子
+     */
+    private void spawnVineParticlesAround(PlayerEntity player) {
+        if (!this.getWorld().isClient()) {
+            ((ServerWorld)this.getWorld()).spawnParticles(
+                net.minecraft.particle.ParticleTypes.ITEM_SLIME, 
+                player.getX(), 
+                player.getY() + 1.0, 
+                player.getZ(), 
+                10, 
+                0.3, 
+                0.5, 
+                0.3, 
+                0.1
+            );
+        }
     }
 }
