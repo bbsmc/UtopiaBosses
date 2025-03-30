@@ -2,6 +2,7 @@ package lt.utopiabosses;
 
 import lt.utopiabosses.client.renderer.SunflowerBossRenderer;
 import lt.utopiabosses.client.renderer.SunflowerSeedRenderer;
+import lt.utopiabosses.client.renderer.TreeBossRenderer;
 import lt.utopiabosses.client.renderer.block.NatureAltarBlockEntityRenderer;
 import lt.utopiabosses.registry.EntityRegistry;
 import lt.utopiabosses.registry.BlockEntityRegistry;
@@ -93,6 +94,10 @@ public class UtopiabossesClient implements ClientModInitializer {
             // 注册向日葵种子渲染器
             LOGGER.info("注册向日葵种子渲染器...");
             EntityRendererRegistry.register(EntityRegistry.SUNFLOWER_SEED, SunflowerSeedRenderer::new);
+            
+            // 注册树木BOSS渲染器
+            LOGGER.info("注册树木BOSS渲染器...");
+            EntityRendererRegistry.register(EntityRegistry.TREE_BOSS, TreeBossRenderer::new);
         } catch (Exception e) {
             LOGGER.error("注册实体渲染器时出错:", e);
         }

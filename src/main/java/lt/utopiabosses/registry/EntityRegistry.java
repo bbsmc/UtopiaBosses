@@ -3,6 +3,7 @@ package lt.utopiabosses.registry;
 import lt.utopiabosses.Utopiabosses;
 import lt.utopiabosses.entity.SunflowerBossEntity;
 import lt.utopiabosses.entity.SunflowerSeedEntity;
+import lt.utopiabosses.entity.TreeBoss;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.entity.EntityDimensions;
@@ -30,9 +31,18 @@ public class EntityRegistry {
             .build()
     );
     
+    public static final EntityType<TreeBoss> TREE_BOSS = Registry.register(
+        Registries.ENTITY_TYPE,
+        new Identifier(Utopiabosses.MOD_ID, "tree_boss"),
+        FabricEntityTypeBuilder.create(SpawnGroup.MONSTER, TreeBoss::new)
+            .dimensions(EntityDimensions.fixed(3.0f, 6.0f))
+            .build()
+    );
+    
     public static void registerEntities() {
         // 只保留属性注册
         FabricDefaultAttributeRegistry.register(SUNFLOWER_BOSS, SunflowerBossEntity.createAttributes());
+        FabricDefaultAttributeRegistry.register(TREE_BOSS, TreeBoss.createAttributes());
     }
     
     public static void registerEntityAttributes() {
