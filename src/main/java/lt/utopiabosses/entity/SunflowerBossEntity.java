@@ -569,7 +569,8 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 添加这段代码来确保BOSS始终面向目标
             // 但在播放死亡动画时不旋转
             LivingEntity target = this.getTarget();
-            if (target != null && !isPlayingDeathAnimation) { // 添加死亡动画判断
+            if (target != null && !isPlayingDeathAnimation && currentAnimation != AnimationType.KUWEI_STORM) { 
+                // 增加对KUWEI_STORM动画的判断，确保死亡动画期间不旋转
                 // 计算朝向目标的角度
                 double deltaX = target.getX() - this.getX();
                 double deltaZ = target.getZ() - this.getZ();
@@ -1040,19 +1041,36 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     
     // 新增：开始死亡动画
     private void startDeathAnimation(DamageSource source, float amount) {
-        // 保存致命伤害信息
+        // 检查是否已经在播放死亡动画
+        if (isPlayingDeathAnimation) {
+            System.out.println("已经在播放死亡动画，不再重复触发");
+            return;
+        }
+        
+        System.out.println("开始死亡动画");
+        
+        // 设置标记
+        isPlayingDeathAnimation = true;
         this.deathCause = source;
         this.lethalDamage = amount;
         
-        // 设置标志
-        isPlayingDeathAnimation = true;
+        // 禁用AI，确保BOSS不会继续执行攻击逻辑
+        this.setAiDisabled(true);
         
-        // 完全禁用AI，确保不会再尝试攻击
-        this.aiDisabled = true;
-        this.attackCooldown = Integer.MAX_VALUE; // 确保不会再次触发攻击
+        // 记录当前视角方向，保持死亡动画期间不变
+        float currentYaw = this.getYaw();
+        float currentBodyYaw = this.bodyYaw;
+        float currentHeadYaw = this.headYaw;
         
-        // 打印当前状态
-        System.out.println("强制切换到死亡动画，当前动画: " + this.currentAnimation);
+        // 切换到死亡动画
+        currentAnimation = AnimationType.KUWEI_STORM;
+        animationTicks = 0;
+        this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.KUWEI_STORM.ordinal());
+        
+        // 设置死亡动画后保持原方向
+        this.setYaw(currentYaw);
+        this.bodyYaw = currentBodyYaw;
+        this.headYaw = currentHeadYaw;
         
         // 立即强制设置死亡动画，不通过setAnimation方法，直接设置所有相关状态
         this.currentAnimation = AnimationType.KUWEI_STORM;
@@ -1078,13 +1096,26 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     
     // 新增：强制设置死亡动画的方法
     private void forceDeathAnimation() {
-        System.out.println("强制切换到死亡动画，当前动画: " + this.currentAnimation);
+        System.out.println("强制切换到死亡动画");
         
-        // 直接设置动画状态，跳过所有检查
+        // 强制清理所有正在进行的技能
+        cleanupSuns();
+        
+        // 记录当前视角方向，保持死亡动画期间不变
+        float currentYaw = this.getYaw();
+        float currentBodyYaw = this.bodyYaw;
+        float currentHeadYaw = this.headYaw;
+        
+        // 设置死亡动画
         this.currentAnimation = AnimationType.KUWEI_STORM;
+        this.animationTicks = 0;
+        this.isPlayingDeathAnimation = true;
         this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.KUWEI_STORM.ordinal());
         
-        System.out.println("向日葵BOSS开始播放死亡动画");
+        // 设置死亡动画后保持原方向
+        this.setYaw(currentYaw);
+        this.bodyYaw = currentBodyYaw;
+        this.headYaw = currentHeadYaw;
     }
     
     // 新增：实际处理死亡的方法
