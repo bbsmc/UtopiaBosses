@@ -364,7 +364,7 @@
 				}
 			}
 		},
-		"跺脚践踏": {
+		"skill_stomping_feet": {
 			"loop": "hold_on_last_frame",
 			"animation_length": 1.75,
 			"bones": {
@@ -1446,7 +1446,7 @@
 				}
 			}
 		},
-		"右手抓取": {
+		"skill_grab_with_the_left_hand": {
 			"loop": "hold_on_last_frame",
 			"animation_length": 1.75,
 			"bones": {

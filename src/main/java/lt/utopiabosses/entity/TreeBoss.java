@@ -46,6 +46,9 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
     private final Random random = new Random();
     
+    // 调试用-固定执行的技能类型
+    public static SkillType DEBUG_FIXED_SKILL = null;
+    
     // 动画定义
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().then("idle", Animation.LoopType.LOOP);
     private static final RawAnimation WALK_ANIM = RawAnimation.begin().then("walk", Animation.LoopType.LOOP);
@@ -53,6 +56,8 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private static final RawAnimation ATTACK_LEFT_ANIM = RawAnimation.begin().then("attack_left", Animation.LoopType.PLAY_ONCE);
     private static final RawAnimation ATTACK_RIGHT_ANIM = RawAnimation.begin().then("attack_right", Animation.LoopType.PLAY_ONCE);
     private static final RawAnimation DIE_ANIM = RawAnimation.begin().then("die", Animation.LoopType.PLAY_ONCE);
+    private static final RawAnimation STOMP_ANIM = RawAnimation.begin().then("skill_stomping_feet", Animation.LoopType.PLAY_ONCE);
+    private static final RawAnimation GRAB_ANIM = RawAnimation.begin().then("skill_grab_with_the_left_hand", Animation.LoopType.PLAY_ONCE);
     
     // 添加BOSS血条
     private final ServerBossBar bossBar;
@@ -62,12 +67,19 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private static final TrackedData<Boolean> DATA_ANIMATION_PLAYING = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Byte> ATTACK_TYPE = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BYTE);
     private static final TrackedData<Boolean> IS_DYING = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
+    private static final TrackedData<Boolean> IS_STOMPING = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
+    private static final TrackedData<Boolean> IS_GRABBING = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
     
     // 攻击相关属性
     private int attackCooldown = 0;
     private boolean isAttacking = false;
     private int animationTicks = 0;
     private int deathTicks = 0;
+    private int stompTicks = 0;
+    private int grabTicks = 0;
+    private int attackCounter = 0; // 攻击计数器，每4次普通攻击触发一次跺脚
+    private PlayerEntity grabbedPlayer = null; // 被抓取的玩家
+    private boolean hasThrown = false; // 是否已经投掷玩家
     
     // 攻击类型枚举
     private enum AttackType {
@@ -76,8 +88,16 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         RIGHT
     }
     
+    // 技能类型枚举
+    public enum SkillType {
+        STOMP,  // 跺脚技能
+        GRAB    // 抓取技能
+    }
+    
     public TreeBoss(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
+        TreeBoss.setDebugFixedSkill(TreeBoss.SkillType.GRAB);
+
         this.bossBar = new ServerBossBar(
             Text.literal("树木BOSS").formatted(Formatting.GREEN),
             BossBar.Color.GREEN, 
@@ -122,6 +142,8 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         this.dataTracker.startTracking(DATA_ANIMATION_PLAYING, false);
         this.dataTracker.startTracking(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
         this.dataTracker.startTracking(IS_DYING, false);
+        this.dataTracker.startTracking(IS_STOMPING, false);
+        this.dataTracker.startTracking(IS_GRABBING, false);
     }
 
     @Override
@@ -149,6 +171,65 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             }
             
             return; // 跳过正常的tick逻辑
+        }
+        
+        // 如果正在执行抓取技能
+        if (this.dataTracker.get(IS_GRABBING)) {
+            // 增加技能计时器
+            grabTicks++;
+            
+            // 在0.25秒时尝试抓取玩家
+            if (grabTicks == 5 && !this.getWorld().isClient()) {
+                grabPlayer();
+            }
+            
+            // 在1.25秒时投掷玩家
+            if (grabTicks == 25 && !this.getWorld().isClient() && !hasThrown) {
+                throwPlayer();
+                hasThrown = true;
+            }
+            
+            // 如果有抓住的玩家，更新其位置到左手
+            if (grabbedPlayer != null && !hasThrown) {
+                updateGrabbedPlayerPosition();
+            }
+            
+            // 检查动画是否结束（1.75秒，约35帧）
+            if (grabTicks >= 35) {
+                // 重置技能状态
+                this.dataTracker.set(IS_GRABBING, false);
+                grabTicks = 0;
+                hasThrown = false;
+                grabbedPlayer = null;
+                attackCooldown = 60; // 设置技能后的冷却时间
+            }
+            
+            // 不需要执行后续的逻辑
+            super.tick();
+            return;
+        }
+        
+        // 如果正在执行跺脚技能
+        if (this.dataTracker.get(IS_STOMPING)) {
+            // 增加技能计时器
+            stompTicks++;
+            
+            // 检查是否到达伤害帧（0.75秒，约15帧）
+            if (stompTicks == 15) {
+                executeStompAttack();
+            }
+            
+            // 检查动画是否结束（1.75秒，约35帧）
+            if (stompTicks >= 35) {
+                // 重置技能状态
+                this.dataTracker.set(IS_STOMPING, false);
+                stompTicks = 0;
+                attackCooldown = 40; // 设置技能后的冷却时间
+            }
+            
+            // 不需要执行后续的逻辑
+            super.tick();
+            return;
         }
         
         super.tick();
@@ -321,6 +402,274 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     }
     
     /**
+     * 执行跺脚践踏攻击
+     */
+    private void executeStompAttack() {
+        if (!this.getWorld().isClient()) {
+            // 大范围攻击区域
+            Box attackBox = this.getBoundingBox().expand(8.0, 3.0, 8.0);
+            List<LivingEntity> targets = this.getWorld().getNonSpectatingEntities(LivingEntity.class, attackBox);
+            
+            for (LivingEntity target : targets) {
+                if (target != this && (!(target instanceof PlayerEntity) || !((PlayerEntity)target).isCreative())) {
+                    // 计算目标相对于BOSS的方向向量
+                    Vec3d dirToTarget = target.getPos().subtract(this.getPos()).normalize();
+                    
+                    // 造成8颗心（16点）伤害
+                    target.damage(this.getDamageSources().mobAttack(this), 16.0F);
+                    
+                    // 向上和外侧击飞
+                    float knockbackStrength = 1.5f - (this.distanceTo(target) / 8.0f);
+                    knockbackStrength = Math.max(0.3f, knockbackStrength); // 确保最小击退
+                    
+                    // 击飞效果
+                    Vec3d knockbackVec = new Vec3d(dirToTarget.x, 0.8, dirToTarget.z).multiply(knockbackStrength);
+                    target.addVelocity(knockbackVec.x, knockbackVec.y, knockbackVec.z);
+                    
+                    // 确保客户端同步速度
+                    if (target instanceof ServerPlayerEntity) {
+                        ((ServerPlayerEntity) target).networkHandler.sendPacket(
+                            new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(target)
+                        );
+                    }
+                }
+            }
+            
+            // 播放地面震动音效
+            this.getWorld().playSound(
+                null, 
+                this.getX(), this.getY(), this.getZ(),
+                SoundEvents.ENTITY_GENERIC_EXPLODE,
+                SoundCategory.HOSTILE, 
+                1.5F, 
+                0.6F
+            );
+            
+            // 播放震动音效
+            this.getWorld().playSound(
+                null, 
+                this.getX(), this.getY(), this.getZ(),
+                SoundEvents.BLOCK_STONE_BREAK,
+                SoundCategory.BLOCKS, 
+                2.0F, 
+                0.5F
+            );
+        }
+    }
+    
+    /**
+     * 尝试抓取附近的玩家
+     */
+    private void grabPlayer() {
+        if (!this.getWorld().isClient()) {
+            // 获取8格内的所有玩家
+            Box searchBox = this.getBoundingBox().expand(8.0, 4.0, 8.0);
+            List<PlayerEntity> players = this.getWorld().getNonSpectatingEntities(PlayerEntity.class, searchBox);
+            
+            // 过滤掉创造模式的玩家
+            players.removeIf(player -> player.isCreative() || player.isSpectator());
+            
+            // 如果附近有玩家
+            if (!players.isEmpty()) {
+                // 优先选择当前目标，如果目标不在列表中，则选择最近的玩家
+                PlayerEntity targetPlayer = null;
+                
+                if (this.getTarget() instanceof PlayerEntity && players.contains(this.getTarget())) {
+                    targetPlayer = (PlayerEntity) this.getTarget();
+                } else {
+                    double closestDistance = Double.MAX_VALUE;
+                    for (PlayerEntity player : players) {
+                        double distance = this.squaredDistanceTo(player);
+                        if (distance < closestDistance) {
+                            closestDistance = distance;
+                            targetPlayer = player;
+                        }
+                    }
+                }
+                
+                if (targetPlayer != null) {
+                    // 抓取玩家
+                    this.grabbedPlayer = targetPlayer;
+                    
+                    // 播放抓取音效
+                    this.getWorld().playSound(
+                        null, 
+                        this.getX(), this.getY(), this.getZ(),
+                        SoundEvents.ENTITY_IRON_GOLEM_ATTACK,
+                        SoundCategory.HOSTILE, 
+                        1.0F, 
+                        0.8F
+                    );
+                }
+            }
+        }
+    }
+    
+    /**
+     * 更新被抓取玩家的位置到BOSS的左手
+     */
+    private void updateGrabbedPlayerPosition() {
+        if (grabbedPlayer != null && !grabbedPlayer.isRemoved() && !grabbedPlayer.isDead()) {
+            // 计算左手的相对位置
+            Vec3d lookVec = Vec3d.fromPolar(0, this.getYaw());
+            Vec3d leftVec = lookVec.rotateY((float)Math.toRadians(-90)).multiply(2.0); // 左侧2.0格
+            Vec3d upVec = new Vec3d(0, 1.5, 0); // 向上1.5格而不是3格
+            Vec3d frontVec = lookVec.multiply(0.5); // 向前0.5格
+            
+            // 计算左手的绝对位置
+            Vec3d handPos = this.getPos().add(leftVec).add(upVec).add(frontVec);
+            
+            // 设置玩家位置
+            grabbedPlayer.teleport(handPos.x, handPos.y, handPos.z);
+            grabbedPlayer.setVelocity(0, 0, 0);
+            grabbedPlayer.fallDistance = 0;
+            
+            // 如果是服务器玩家，同步速度
+            if (grabbedPlayer instanceof ServerPlayerEntity) {
+                ((ServerPlayerEntity) grabbedPlayer).networkHandler.sendPacket(
+                    new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(grabbedPlayer)
+                );
+            }
+        }
+    }
+    
+    /**
+     * 投掷被抓取的玩家
+     */
+    private void throwPlayer() {
+        if (grabbedPlayer != null && !grabbedPlayer.isRemoved() && !grabbedPlayer.isDead()) {
+            // 计算投掷方向（向前上方）
+            Vec3d lookVec = Vec3d.fromPolar(0, this.getYaw());
+            Vec3d throwVec = lookVec.multiply(2.5).add(0, 0.8, 0);
+            
+            // 施加投掷速度
+            grabbedPlayer.setVelocity(throwVec);
+            grabbedPlayer.velocityModified = true;
+            
+            // 设置玩家为被投掷状态（用于检测落地伤害）
+            markPlayerAsThrown(grabbedPlayer);
+            
+            // 播放投掷音效
+            this.getWorld().playSound(
+                null, 
+                this.getX(), this.getY(), this.getZ(),
+                SoundEvents.ENTITY_WITCH_THROW,
+                SoundCategory.HOSTILE, 
+                1.5F, 
+                0.8F
+            );
+            
+            // 如果是服务器玩家，同步速度
+            if (grabbedPlayer instanceof ServerPlayerEntity) {
+                ((ServerPlayerEntity) grabbedPlayer).networkHandler.sendPacket(
+                    new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(grabbedPlayer)
+                );
+            }
+        }
+    }
+    
+    /**
+     * 标记玩家为被投掷状态，用于检测落地伤害
+     */
+    private void markPlayerAsThrown(PlayerEntity player) {
+        // 检测玩家着陆并造成伤害的逻辑
+        // 这里不再使用DataTracker标记，改用其他方式
+        
+        // 在服务端添加一个临时监听器来检测玩家着陆
+        if (!this.getWorld().isClient()) {
+            // 在服务端为玩家设置一个标记
+            ((ServerPlayerEntity) player).server.execute(new Runnable() {
+                private int checkTicks = 0;
+                private boolean hasHitGround = false;
+                
+                @Override
+                public void run() {
+                    checkTicks++;
+                    
+                    // 检查玩家是否已着陆或已死亡，否则继续检测
+                    if (player.isRemoved() || player.isDead() || hasHitGround || checkTicks > 100) {
+                        return;
+                    }
+                    
+                    // 检测玩家是否撞到了方块
+                    boolean onGround = player.isOnGround();
+                    boolean inAir = !player.isOnGround() && player.getVelocity().y < -0.1;
+                    
+                    if (onGround && checkTicks > 5) {
+                        // 玩家着陆，造成伤害
+                        player.damage(player.getDamageSources().fall(), 8.0F);
+                        hasHitGround = true;
+                        
+                        // 播放撞击音效
+                        player.getWorld().playSound(
+                            null, 
+                            player.getX(), player.getY(), player.getZ(),
+                            SoundEvents.ENTITY_GENERIC_BIG_FALL,
+                            SoundCategory.PLAYERS, 
+                            1.0F, 
+                            1.0F
+                        );
+                        
+                        return;
+                    }
+                    
+                    // 继续检测
+                    ((ServerPlayerEntity) player).server.execute(this);
+                }
+            });
+        }
+    }
+    
+    /**
+     * 使用抓取技能
+     */
+    private void useGrabAttack() {
+        if (!this.getWorld().isClient()) {
+            // 设置抓取状态
+            this.dataTracker.set(IS_GRABBING, true);
+            this.grabTicks = 0;
+            this.hasThrown = false;
+            
+            // 重置攻击状态
+            this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
+            
+            // 播放准备音效
+            this.getWorld().playSound(
+                null, 
+                this.getX(), this.getY(), this.getZ(),
+                SoundEvents.ENTITY_EVOKER_PREPARE_ATTACK,
+                SoundCategory.HOSTILE, 
+                1.0F, 
+                0.6F
+            );
+        }
+    }
+    
+    /**
+     * 使用跺脚技能
+     */
+    private void useStompAttack() {
+        if (!this.getWorld().isClient()) {
+            // 设置跺脚状态
+            this.dataTracker.set(IS_STOMPING, true);
+            this.stompTicks = 0;
+            
+            // 重置攻击状态
+            this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
+            
+            // 播放准备音效
+            this.getWorld().playSound(
+                null, 
+                this.getX(), this.getY(), this.getZ(),
+                SoundEvents.ENTITY_RAVAGER_ROAR,
+                SoundCategory.HOSTILE, 
+                1.0F, 
+                0.8F
+            );
+        }
+    }
+    
+    /**
      * 处理关键帧事件
      * @param keyframeData 关键帧数据
      */
@@ -337,6 +686,9 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 if (this.getTarget() != null && this.distanceTo(this.getTarget()) <= 4.0f) {
                     this.getTarget().damage(this.getDamageSources().mobAttack(this), (float) this.getAttributeValue(EntityAttributes.GENERIC_ATTACK_DAMAGE));
                 }
+            } else if (keyframeData.equals("stomp_hit")) {
+                // 跺脚践踏命中
+                executeStompAttack();
             }
         }
     }
@@ -394,6 +746,20 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             return PlayState.CONTINUE;
         }
         
+        // 检查是否正在执行抓取技能
+        if (this.dataTracker.get(IS_GRABBING)) {
+            // 播放抓取动画
+            state.getController().setAnimation(GRAB_ANIM);
+            return PlayState.CONTINUE;
+        }
+        
+        // 检查是否正在执行跺脚技能
+        if (this.dataTracker.get(IS_STOMPING)) {
+            // 播放跺脚动画
+            state.getController().setAnimation(STOMP_ANIM);
+            return PlayState.CONTINUE;
+        }
+        
         // 获取实体当前状态
         byte attackType = this.dataTracker.get(ATTACK_TYPE);
         
@@ -426,6 +792,37 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         // 如果攻击冷却中，取消攻击
         if (attackCooldown > 0) {
             return false;
+        }
+        
+        // 增加攻击计数
+        attackCounter++;
+        
+        // 判断是否达到技能触发条件（第4次或第7次攻击）
+        boolean shouldUseSkill = (attackCounter >= 4);
+        
+        // 如果达到技能释放条件
+        if (shouldUseSkill) {
+            // 重置攻击计数
+            attackCounter = 0;
+            
+            // 根据调试设置决定使用哪个技能
+            if (DEBUG_FIXED_SKILL != null) {
+                // 使用固定技能
+                if (DEBUG_FIXED_SKILL == SkillType.STOMP) {
+                    useStompAttack();
+                } else if (DEBUG_FIXED_SKILL == SkillType.GRAB) {
+                    useGrabAttack();
+                }
+            } else {
+                // 使用随机技能逻辑
+                // 第7次攻击触发抓取, 第4次攻击触发跺脚
+                if (attackCounter >= 7) {
+                    useGrabAttack();
+                } else if (attackCounter >= 4) {
+                    useStompAttack();
+                }
+            }
+            return true;
         }
         
         // 随机选择左手或右手攻击
@@ -494,5 +891,14 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             bossBar.clearPlayers();
         }
         super.onRemoved();
+    }
+
+    /**
+     * 设置固定执行的技能类型(调试用)
+     * @param skillType 要固定执行的技能类型，null表示随机执行
+     */
+    public static void setDebugFixedSkill(SkillType skillType) {
+        DEBUG_FIXED_SKILL = skillType;
+        System.out.println("TreeBoss调试模式: " + (skillType == null ? "随机技能" : skillType));
     }
 }
