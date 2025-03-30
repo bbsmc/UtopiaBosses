@@ -43,7 +43,9 @@ public class ItemRegistry {
     public static final SunflowerSwordItem SUNFLOWER_SWORD = registerItem("sunflower_sword", new SunflowerSwordItem(new FabricItemSettings().maxDamage(1600).fireproof()));
     // 盾牌
     public static final SunflowerShieldItem SUNFLOWER_SHIELD = registerItem("sunflower_shield", new SunflowerShieldItem(new FabricItemSettings().maxDamage(336).fireproof()));
-
+    // 树灵之杖
+    public static final TreeSpiritStaffItem TREE_SPIRIT_STAFF = registerItem("tree_spirit_staff", 
+        new TreeSpiritStaffItem(new FabricItemSettings().maxDamage(2000)));
 
     // 自然祭坛物品
     public static final BlockItem NATURE_ALTAR = registerItem("nature_altar",
@@ -109,6 +111,7 @@ public class ItemRegistry {
             content.add(SUNFLOWER_GATLING);
             content.add(SUNFLOWER_SWORD);
             content.add(SUNFLOWER_SHIELD);
+            content.add(TREE_SPIRIT_STAFF);
             content.add(NATURE_ALTAR);
             content.add(SUN_ITEM);
             content.add(NATURAL_ESSENCE);

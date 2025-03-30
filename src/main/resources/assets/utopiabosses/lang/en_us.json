@@ -24,6 +24,10 @@
   "item.utopiabosses.cooked_sunflower_seed": "Cooked Sunflower Seed",
   "item.utopiabosses.sunflower_natural_essence": "Sunflower Natural Essence",
   "block.utopiabosses.nature_altar": "Nature Altar",
+
+  "item.utopiabosses.tree_spirit_staff": "Tree Spirit Staff",
+  "item.utopiabosses.tree_spirit_staff.tooltip1": "Left-click: Absorb Life",
+  "item.utopiabosses.tree_spirit_staff.tooltip2": "Right-click: Speed up plant growth",
   
   "subtitles.entity.utopiabosses.sunflower_boss.ambient": "Sunflower Boss: Whispering",
   "subtitles.entity.utopiabosses.sunflower_boss.hurt": "Sunflower Boss: Hurt",

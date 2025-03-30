@@ -5,9 +5,11 @@ import lt.utopiabosses.client.renderer.SunflowerSeedRenderer;
 import lt.utopiabosses.client.renderer.TreeBossRenderer;
 import lt.utopiabosses.client.renderer.LittleTreeManRenderer;
 import lt.utopiabosses.client.renderer.block.NatureAltarBlockEntityRenderer;
+import lt.utopiabosses.client.renderer.item.*;
 import lt.utopiabosses.registry.EntityRegistry;
 import lt.utopiabosses.registry.BlockEntityRegistry;
 import lt.utopiabosses.registry.BlockRegistry;
+import lt.utopiabosses.registry.ItemRegistry;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -41,6 +43,9 @@ public class UtopiabossesClient implements ClientModInitializer {
             
             // 注册方块实体渲染器
             registerBlockEntityRenderers();
+            
+            // 注册物品渲染器
+            registerItemRenderers();
             
             LOGGER.info("Utopiabosses客户端初始化完成！");
         } catch (Exception e) {
@@ -105,6 +110,21 @@ public class UtopiabossesClient implements ClientModInitializer {
             EntityRendererRegistry.register(EntityRegistry.LITTLE_TREE_MAN, LittleTreeManRenderer::new);
         } catch (Exception e) {
             LOGGER.error("注册实体渲染器时出错:", e);
+        }
+    }
+    
+    /**
+     * 注册物品渲染器
+     * 注意：在GeckoLib 4.7中，物品渲染器由物品自身注册，不需要在这里进行
+     * 这是因为GeoItem实现了registerControllers方法，它们会自动注册
+     */
+    private void registerItemRenderers() {
+        try {
+            LOGGER.info("注册物品渲染器...");
+            // GeckoLib 4.7的方式中不需要显式注册渲染器，所有GeoItem会自动处理
+            LOGGER.info("已注册物品渲染器");
+        } catch (Exception e) {
+            LOGGER.error("注册物品渲染器时出错:", e);
         }
     }
 } 

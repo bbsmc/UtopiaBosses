@@ -25,6 +25,10 @@
   "item.utopiabosses.sunflower_natural_essence": "向日葵自然精华",
   "block.utopiabosses.nature_altar": "自然祭坛",
   
+  "item.utopiabosses.tree_spirit_staff": "树灵之杖",
+  "item.utopiabosses.tree_spirit_staff.tooltip1": "左键：吸取生命",
+  "item.utopiabosses.tree_spirit_staff.tooltip2": "右键：催熟植物",
+  
   "subtitles.item.gatling.fire": "加特林：射击",
   "subtitles.entity.utopiabosses.sunflower.jin": "向日葵：近战",
   "subtitles.entity.utopiabosses.sunflower.yuan": "向日葵：远程",
