@@ -29,6 +29,7 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import net.minecraft.particle.ParticleTypes;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
@@ -61,6 +62,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private static final RawAnimation STOMP_ANIM = RawAnimation.begin().then("skill_stomping_feet", Animation.LoopType.PLAY_ONCE);
     private static final RawAnimation GRAB_ANIM = RawAnimation.begin().then("skill_grab_with_the_left_hand", Animation.LoopType.PLAY_ONCE);
     private static final RawAnimation VINES_ANIM = RawAnimation.begin().then("skill_insert_both_arms_into_the_ground_surface", Animation.LoopType.PLAY_ONCE);
+    private static final RawAnimation ROAR_ANIM = RawAnimation.begin().then("skill_roar_towards_the_sky", Animation.LoopType.PLAY_ONCE);
     
     // 添加BOSS血条
     private final ServerBossBar bossBar;
@@ -73,6 +75,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private static final TrackedData<Boolean> IS_STOMPING = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Boolean> IS_GRABBING = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Boolean> IS_SUMMONING_VINES = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
+    private static final TrackedData<Boolean> IS_ROARING = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
     
     // 攻击相关属性
     private int attackCooldown = 0;
@@ -82,6 +85,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private int stompTicks = 0;
     private int grabTicks = 0;
     private int vinesTicks = 0;
+    private int roarTicks = 0;
     private int attackCounter = 0; // 攻击计数器，每4次普通攻击触发一次跺脚
     private PlayerEntity grabbedPlayer = null; // 被抓取的玩家
     private boolean hasThrown = false; // 是否已经投掷玩家
@@ -104,12 +108,13 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     public enum SkillType {
         STOMP,  // 跺脚技能
         GRAB,   // 抓取技能
-        VINES   // 藤曼技能
+        VINES,  // 藤曼技能
+        ROAR    // 朝天怒吼技能
     }
     
     public TreeBoss(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
-        TreeBoss.setDebugFixedSkill(TreeBoss.SkillType.VINES);
+        TreeBoss.setDebugFixedSkill(TreeBoss.SkillType.ROAR);
 
         this.bossBar = new ServerBossBar(
             Text.literal("树木BOSS").formatted(Formatting.GREEN),
@@ -158,6 +163,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         this.dataTracker.startTracking(IS_STOMPING, false);
         this.dataTracker.startTracking(IS_GRABBING, false);
         this.dataTracker.startTracking(IS_SUMMONING_VINES, false);
+        this.dataTracker.startTracking(IS_ROARING, false);
     }
 
     @Override
@@ -173,6 +179,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                                     this.dataTracker.get(IS_SUMMONING_VINES) ||
                                     this.dataTracker.get(IS_GRABBING) ||
                                     this.dataTracker.get(IS_STOMPING) ||
+                                    this.dataTracker.get(IS_ROARING) ||
                                     this.dataTracker.get(ATTACK_TYPE) != AttackType.NONE.ordinal();
         
         // 如果正在播放死亡动画
@@ -359,6 +366,38 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 this.dataTracker.set(IS_STOMPING, false);
                 stompTicks = 0;
                 attackCooldown = 40; // 设置技能后的冷却时间
+            }
+            
+            super.tick();
+            
+            // 固定视角方向
+            this.setYaw(savedYaw);
+            this.setPitch(savedPitch);
+            this.bodyYaw = savedBodyYaw;
+            this.headYaw = savedHeadYaw;
+            
+            return;
+        }
+        
+        // 如果正在执行朝天怒吼技能
+        if (this.dataTracker.get(IS_ROARING)) {
+            // 增加技能计时器
+            roarTicks++;
+            
+            // 设置实体静止
+            this.setVelocity(0, this.getVelocity().y, 0);
+            
+            // 检查动画是否结束（1.5秒，约30帧）
+            if (roarTicks >= 30) {
+                // 动画结束，执行召唤小树人的效果
+                if (!this.getWorld().isClient()) {
+                    summonLittleTreeMen();
+                }
+                
+                // 重置技能状态
+                this.dataTracker.set(IS_ROARING, false);
+                roarTicks = 0;
+                attackCooldown = 60; // 设置技能后的冷却时间
             }
             
             super.tick();
@@ -858,6 +897,35 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     }
     
     /**
+     * 使用朝天怒吼技能
+     */
+    private void useRoarAttack() {
+        if (!this.getWorld().isClient()) {
+            // 确保BOSS面向目标
+            if (this.getTarget() != null) {
+                faceEntity(this.getTarget());
+            }
+            
+            // 设置怒吼状态
+            this.dataTracker.set(IS_ROARING, true);
+            this.roarTicks = 0;
+            
+            // 重置攻击状态
+            this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
+            
+            // 播放准备音效
+            this.getWorld().playSound(
+                null, 
+                this.getX(), this.getY(), this.getZ(),
+                SoundEvents.ENTITY_RAVAGER_ROAR,
+                SoundCategory.HOSTILE, 
+                1.2F, 
+                0.5F
+            );
+        }
+    }
+    
+    /**
      * 让BOSS面向指定实体
      */
     private void faceEntity(Entity entity) {
@@ -970,6 +1038,13 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             return PlayState.CONTINUE;
         }
         
+        // 检查是否正在执行怒吼技能
+        if (this.dataTracker.get(IS_ROARING)) {
+            // 播放怒吼动画
+            state.getController().setAnimation(ROAR_ANIM);
+            return PlayState.CONTINUE;
+        }
+        
         // 获取实体当前状态
         byte attackType = this.dataTracker.get(ATTACK_TYPE);
         
@@ -1027,10 +1102,12 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     useGrabAttack();
                 } else if (DEBUG_FIXED_SKILL == SkillType.VINES) {
                     useVinesAttack();
+                } else if (DEBUG_FIXED_SKILL == SkillType.ROAR) {
+                    useRoarAttack();
                 }
             } else {
                 // 使用随机技能逻辑
-                int skillChoice = random.nextInt(3); // 0-2的随机数
+                int skillChoice = random.nextInt(4); // 0-3的随机数
                 switch (skillChoice) {
                     case 0:
                         useStompAttack();
@@ -1040,6 +1117,9 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                         break;
                     case 2:
                         useVinesAttack();
+                        break;
+                    case 3:
+                        useRoarAttack();
                         break;
                 }
             }
@@ -1388,6 +1468,67 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 0.5, 
                 0.3, 
                 0.1
+            );
+        }
+    }
+
+    /**
+     * 召唤小树人
+     */
+    private void summonLittleTreeMen() {
+        if (!this.getWorld().isClient()) {
+            // 生成4-5个小树人
+            int count = 4 + this.random.nextInt(2); // 4或5个
+            
+            for (int i = 0; i < count; i++) {
+                // 计算生成位置（在BOSS周围18格内的随机点）
+                double angle = random.nextDouble() * 2 * Math.PI; // 随机角度 0-2π
+                double distance = 5.0 + random.nextDouble() * 8.0; // 5-8格距离
+                double x = this.getX() + Math.sin(angle) * distance;
+                double z = this.getZ() + Math.cos(angle) * distance;
+                
+                // 找到适合的Y坐标（确保生成在地面上）
+                double y = this.getY();
+                
+                // 创建小树人实体
+                LittleTreeMan littleTreeMan = new LittleTreeMan(
+                    EntityRegistry.LITTLE_TREE_MAN,
+                    this.getWorld()
+                );
+                
+                // 设置位置
+                littleTreeMan.setPosition(x, y, z);
+                
+                // 将小树人的目标设置为BOSS的目标（只有当目标是玩家时）
+                if (this.getTarget() != null && this.getTarget() instanceof PlayerEntity) {
+                    littleTreeMan.setTarget(this.getTarget());
+                } else {
+                    // 如果BOSS没有玩家目标，尝试找到最近的玩家作为目标
+                    PlayerEntity closestPlayer = this.getWorld().getClosestPlayer(this, 32.0);
+                    if (closestPlayer != null) {
+                        littleTreeMan.setTarget(closestPlayer);
+                    }
+                }
+                
+                // 添加到世界
+                this.getWorld().spawnEntity(littleTreeMan);
+                
+                // 生成粒子效果
+                ((ServerWorld)this.getWorld()).spawnParticles(
+                    ParticleTypes.LARGE_SMOKE,
+                    x, y + 0.5, z,
+                    10, 0.3, 0.3, 0.3, 0.05
+                );
+            }
+            
+            // 播放召唤音效
+            this.getWorld().playSound(
+                null,
+                this.getX(), this.getY(), this.getZ(),
+                SoundEvents.ENTITY_EVOKER_CAST_SPELL,
+                SoundCategory.HOSTILE,
+                1.5F,
+                0.8F
             );
         }
     }

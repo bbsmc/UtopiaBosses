@@ -94,7 +94,8 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
             public boolean canStart() {
                 return !LittleTreeMan.this.dataTracker.get(IS_SURPRISED) 
                     && !LittleTreeMan.this.dataTracker.get(IS_EXPLODING) 
-                    && super.canStart();
+                    && super.canStart()
+                    && LittleTreeMan.this.getTarget() instanceof PlayerEntity; // 确保目标是玩家
             }
         });
         
@@ -105,8 +106,13 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
         this.goalSelector.add(3, new LookAtEntityGoal(this, PlayerEntity.class, 8.0F));
         this.goalSelector.add(4, new LookAroundGoal(this));
         
-        // 目标选择AI
-        this.targetSelector.add(1, new RevengeGoal(this));
+        // 目标选择AI - 只针对玩家
+        this.targetSelector.add(1, new RevengeGoal(this) {
+            @Override
+            public boolean shouldContinue() {
+                return super.shouldContinue() && this.mob.getAttacker() instanceof PlayerEntity;
+            }
+        });
         this.targetSelector.add(2, new ActiveTargetGoal<>(this, PlayerEntity.class, true));
     }
 
@@ -121,6 +127,11 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
     @Override
     public void tick() {
         super.tick();
+        
+        // 确保目标只能是玩家
+        if (this.getTarget() != null && !(this.getTarget() instanceof PlayerEntity)) {
+            this.setTarget(null);
+        }
         
         // 更新实体状态
         boolean hasTarget = this.getTarget() != null;
@@ -178,24 +189,30 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
         }
         // 处理发现玩家状态
         else if (hasTarget && !hasSeenPlayer) {
-            // 第一次发现玩家，进入惊讶状态
-            this.dataTracker.set(IS_SURPRISED, true);
-            surprisedTicks = 0;
-            hasSeenPlayer = true;
-            
-            // 播放惊讶音效
-            this.getWorld().playSound(
-                null,
-                this.getX(), this.getY(), this.getZ(),
-                SoundEvents.ENTITY_VILLAGER_HURT,
-                SoundCategory.HOSTILE,
-                1.0F,
-                1.5F // 较高的音调
-            );
+            // 第一次发现玩家，进入惊讶状态 - 只有当目标是玩家时才震惊
+            if (this.getTarget() instanceof PlayerEntity) {
+                this.dataTracker.set(IS_SURPRISED, true);
+                surprisedTicks = 0;
+                hasSeenPlayer = true;
+                
+                // 播放惊讶音效
+                this.getWorld().playSound(
+                    null,
+                    this.getX(), this.getY(), this.getZ(),
+                    SoundEvents.ENTITY_VILLAGER_HURT,
+                    SoundCategory.HOSTILE,
+                    1.0F,
+                    1.5F // 较高的音调
+                );
+            } else {
+                // 如果目标不是玩家，直接标记为已见过玩家，跳过惊讶阶段
+                hasSeenPlayer = true;
+            }
         }
         // 如果目标在2.5格内且已经看到过玩家，开始自爆
         else if (hasTarget && hasSeenPlayer && !this.dataTracker.get(IS_EXPLODING)) {
-            PlayerEntity target = (PlayerEntity)this.getTarget();
+            LivingEntity target = this.getTarget();
+            // 检查距离条件，无论目标是什么类型
             if (this.squaredDistanceTo(target) < 6.25) { // 2.5^2 = 6.25
                 startExploding();
             }
@@ -357,5 +374,15 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
     protected void dropLoot(DamageSource source, boolean causedByPlayer) {
         super.dropLoot(source, causedByPlayer);
         // 可以在这里添加自定义掉落物
+    }
+
+    // 覆盖setTarget方法，确保只有玩家才能成为目标
+    @Override
+    public void setTarget(LivingEntity target) {
+        // 如果目标不是玩家，直接忽略
+        if (target != null && !(target instanceof PlayerEntity)) {
+            return;
+        }
+        super.setTarget(target);
     }
 } 
