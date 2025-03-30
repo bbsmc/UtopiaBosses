@@ -4,6 +4,7 @@ import lt.utopiabosses.Utopiabosses;
 import lt.utopiabosses.entity.SunflowerBossEntity;
 import lt.utopiabosses.entity.SunflowerSeedEntity;
 import lt.utopiabosses.entity.TreeBoss;
+import lt.utopiabosses.entity.LittleTreeMan;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.entity.EntityDimensions;
@@ -39,10 +40,19 @@ public class EntityRegistry {
             .build()
     );
     
+    public static final EntityType<LittleTreeMan> LITTLE_TREE_MAN = Registry.register(
+        Registries.ENTITY_TYPE,
+        new Identifier(Utopiabosses.MOD_ID, "little_tree_man"),
+        FabricEntityTypeBuilder.create(SpawnGroup.MONSTER, LittleTreeMan::new)
+            .dimensions(EntityDimensions.fixed(0.6f, 1.2f))
+            .build()
+    );
+    
     public static void registerEntities() {
         // 只保留属性注册
         FabricDefaultAttributeRegistry.register(SUNFLOWER_BOSS, SunflowerBossEntity.createAttributes());
         FabricDefaultAttributeRegistry.register(TREE_BOSS, TreeBoss.createAttributes());
+        FabricDefaultAttributeRegistry.register(LITTLE_TREE_MAN, LittleTreeMan.createAttributes());
     }
     
     public static void registerEntityAttributes() {

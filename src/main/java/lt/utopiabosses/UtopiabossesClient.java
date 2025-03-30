@@ -3,6 +3,7 @@ package lt.utopiabosses;
 import lt.utopiabosses.client.renderer.SunflowerBossRenderer;
 import lt.utopiabosses.client.renderer.SunflowerSeedRenderer;
 import lt.utopiabosses.client.renderer.TreeBossRenderer;
+import lt.utopiabosses.client.renderer.LittleTreeManRenderer;
 import lt.utopiabosses.client.renderer.block.NatureAltarBlockEntityRenderer;
 import lt.utopiabosses.registry.EntityRegistry;
 import lt.utopiabosses.registry.BlockEntityRegistry;
@@ -98,6 +99,10 @@ public class UtopiabossesClient implements ClientModInitializer {
             // 注册树木BOSS渲染器
             LOGGER.info("注册树木BOSS渲染器...");
             EntityRendererRegistry.register(EntityRegistry.TREE_BOSS, TreeBossRenderer::new);
+            
+            // 注册小树人渲染器
+            LOGGER.info("注册小树人渲染器...");
+            EntityRendererRegistry.register(EntityRegistry.LITTLE_TREE_MAN, LittleTreeManRenderer::new);
         } catch (Exception e) {
             LOGGER.error("注册实体渲染器时出错:", e);
         }
