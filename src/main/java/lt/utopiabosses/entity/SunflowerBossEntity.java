@@ -110,8 +110,8 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     
     // 在类中添加动画持续时间控制变量
     private int animationTicks = 0;
-    private static final int LEFT_ATTACK_DURATION = 40; // 例如：左手攻击动画为2秒
-    private static final int RIGHT_ATTACK_DURATION = 40; // 例如：右手攻击动画为2秒
+    private static final int LEFT_ATTACK_DURATION = 40; // 左手攻击动画持续40帧
+    private static final int RIGHT_ATTACK_DURATION = 60; // 右手攻击动画持续60帧，确保能触发第40帧的伤害
     private static final int RANGED_ATTACK_DURATION = 50; // 例如：远程攻击动画为2.5秒
     private static final int SEED_BARRAGE_DURATION = 50; // 例如：种子弹幕动画为2.5秒
     private static final int SUNBEAM_DURATION = 160; // 例如：阳光射线动画为8秒
@@ -197,6 +197,11 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     // 在类的开头添加调试开关
     private static final boolean DEBUG_SUNBEAM_ONLY = false; // 调试开关：设为true时只使用阳光射线技能
 
+    // 添加新字段用于防止重复触发IDLE状态
+    private long lastIdleSetTime = 0;
+    // 添加计数器，用于跟踪右手攻击重置次数
+    private int rightAttackResetCount = 0;
+
     public SunflowerBossEntity(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
         this.bossBar = new ServerBossBar(
@@ -229,305 +234,412 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
     @Override
     public void tick() {
-        // 在tick开始时检查并清理可能的遗留太阳
-        if (!this.getWorld().isClient() && this.age % 20 == 0) { // 每秒检查一次
+        try {
+            // 在tick开始时检查并清理可能的遗留太阳
+            if (!this.getWorld().isClient() && this.age % 20 == 0) { // 每秒检查一次
+                if (currentAnimation != AnimationType.SUNBEAM && !suns.isEmpty()) {
+                    System.out.println("检测到非阳光射线状态下的残留太阳，执行清理");
+                    cleanupSuns();
+                    cleanupAllSunsInWorld();
+                }
+            }
+            
+            super.tick();
+
+            // 如果正在播放死亡动画，只处理死亡动画相关逻辑
+            if (isPlayingDeathAnimation) {
+                // 确保不旋转和移动
+                this.setVelocity(0, this.getVelocity().y, 0);
+                
+                // 更新死亡动画
+                if (currentAnimation == AnimationType.KUWEI_STORM) {
+                    animationTicks++;
+                    
+                    // 检查死亡动画是否已经完成
+                    if (animationTicks >= KUWEI_STORM_DURATION) {
+                        // 动画完成后真正处理死亡
+                        System.out.println("死亡动画播放完毕，现在真正处理死亡");
+                        isPlayingDeathAnimation = false;
+                        
+                        // 确保实体真正死亡
+                        if (deathCause != null && !this.getWorld().isClient()) {
+                            // 不要设置血量为0，直接调用死亡处理逻辑
+                            // this.setHealth(0); - 这行可能导致触发原版死亡动画
+                            actuallyDie(deathCause);
+                            
+                            // 标记为应该移除，直接处理移除逻辑
+                            shouldBeRemoved = true;
+                            super.remove(RemovalReason.KILLED);
+                        }
+                    }
+                } else {
+                    // 如果当前动画不是死亡动画，但标志是死亡状态，则强制设置为死亡动画
+                    System.out.println("检测到死亡状态但动画不正确，强制设置为死亡动画");
+                    this.currentAnimation = AnimationType.KUWEI_STORM;
+                    this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.KUWEI_STORM.ordinal());
+                    this.animationTicks = 0;
+                    forceTriggerAnimation("controller", "kuwei");
+                }
+                
+                // 死亡动画播放时跳过其他逻辑
+                return;
+            }
+
+            // 更新攻击冷却时间
+            if (attackCooldown > 0) {
+                attackCooldown--;
+            }
+
+            // 如果应该旋转，则在AI处理前强制设置朝向
+            if (shouldRotate) {
+                // 强制设置朝向
+                this.setYaw(rotationYaw);
+                this.bodyYaw = rotationYaw;
+                this.headYaw = rotationYaw;
+                
+                // 如果AI未被禁用，则禁用AI
+                if (!aiDisabled) {
+                    // 保存当前目标
+                    this.setAiDisabled(true);
+                    aiDisabled = true;
+                    System.out.println("BOSS旋转：AI已禁用，当前角度: " + rotationYaw);
+                }
+            } else if (aiDisabled) {
+                // 如果不应该旋转但AI被禁用，则恢复AI
+                this.setAiDisabled(false);
+                aiDisabled = false;
+                System.out.println("BOSS旋转：AI已恢复");
+            }
+            
+            // 技能冷却时间
+            if (seedBarrageCooldown > 0) seedBarrageCooldown--;
+            if (sunbeamCooldown > 0) sunbeamCooldown--;
+            if (petalStormCooldown > 0) petalStormCooldown--;
+            if (meleeAnimationTimer > 0) meleeAnimationTimer--;
+            
+            // 动画锁定计时器
+            if (animationLockTimer > 0) {
+                animationLockTimer--;
+                if (animationLockTimer <= 0) {
+                    isAnimationLocked = false;
+                    System.out.println("动画锁定已解除");
+                }
+            }
+            
+            // 检查是否到达半血且尚未触发
+            // 在tick方法中只检查，不触发，因为已在damage方法中处理
+            if (!isHalfHealthTriggered && this.getHealth() <= this.getMaxHealth() / 2) {
+                isHalfHealthTriggered = true;
+                System.out.println("【半血触发】在tick方法中检测到半血状态");
+                // 不在这里尝试触发花瓣风暴，而是通过damage方法处理
+            }
+            
+            // 检查当前动画是否在播放中
+            if (currentAnimation != AnimationType.IDLE) {
+                // 确保currentAnimation与tracker保持同步
+                byte trackedAnim = this.dataTracker.get(ANIMATION_STATE);
+                if (trackedAnim != this.currentAnimation.ordinal()) {
+                    System.out.println("【同步警告】当前动画(" + this.currentAnimation + ")与追踪器(" + 
+                                     AnimationType.values()[trackedAnim] + ")不一致，正在同步");
+                    this.currentAnimation = AnimationType.values()[trackedAnim];
+                }
+                
+                animationTicks++;
+                int animationDuration = getAnimationDuration(currentAnimation);
+                
+                // 更新DATA_ANIMATION_ID数据追踪器，用于同步动画帧数
+                this.dataTracker.set(DATA_ANIMATION_ID, animationTicks);
+                
+                // 简化动画同步，只在右手攻击的关键帧前同步一次
+                if (!this.getWorld().isClient() && 
+                    currentAnimation == AnimationType.RIGHT_MELEE_ATTACK && 
+                    animationTicks == 39) { // 在伤害触发前一帧同步
+                    // 发送动画帧同步请求，使用不会触发类型转换的方式
+                    try {
+                        // 使用自定义数据包或其他安全的方式来同步
+                        System.out.println("发送关键帧同步请求：即将触发右手攻击伤害");
+                        
+                        // 我们暂时禁用这个同步功能，直到找到更安全的方式
+                        // this.getWorld().sendEntityStatus(this, (byte)21);
+                        
+                        // 仅使用dataTracker同步
+                        // 确保dataTracker是最新的
+                        this.dataTracker.set(DATA_ANIMATION_ID, animationTicks);
+                    } catch (Exception e) {
+                        System.out.println("发送动画帧同步请求时出错: " + e.getMessage());
+                    }
+                }
+                
+                // 处理动画帧效果
+                // 技能效果触发通常在动画的1/3处
+                int effectFrame = animationDuration / 3;
+                effectFrame = Math.max(10, effectFrame); // 确保至少在第10帧触发
+                
+                // 根据当前动画类型执行对应效果
+                switch (this.currentAnimation) {
+                    case SEED_BARRAGE:
+                        // 葵花籽弹幕 - 每5帧发射一次，连续发射多次
+                        if (animationTicks % 5 == 0 && animationTicks <= effectFrame + 20) {
+                            LivingEntity seedTarget = this.getTarget();
+                            if (seedTarget != null) {
+                                System.out.println("【葵花籽弹幕】发射种子 - 第" + animationTicks + "帧");
+                                
+                                // 每次发射5颗种子，形成密集弹幕
+                                for (int i = 0; i < 5; i++) {
+                                    fireSeedBarrage(seedTarget);
+                                }
+                                
+                                // 播放弹幕技能音效
+                                this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+                                    SoundRegistry.ENTITY_SUNFLOWER_DANMU, SoundCategory.HOSTILE, 2.0f, 1.0f);
+                            }
+                        }
+                        break;
+                        
+                    case SUNBEAM:
+                        // 阳光灼烧射线 - 在每一帧都调用，内部处理具体逻辑
+                        if (this.getTarget() != null) {
+                            createSunbeamEffect(this.getTarget());
+                        }
+                        break;
+                        
+                    case PETAL_STORM:
+                        // 花瓣风暴 - 在特定帧触发效果
+                        if (animationTicks == effectFrame) {
+                            System.out.println("【花瓣风暴】触发效果 - 第" + animationTicks + "帧");
+                            createPetalStormEffect();
+                            
+                            // 播放强力音效
+                            this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+                                SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 1.0f, 0.5f);
+                        }
+                        break;
+                        
+                    case RANGED_ATTACK:
+                        // 处理远程普通攻击效果
+                        handleRangedAttackEffect(animationTicks);
+                        break;
+                        
+                    case LEFT_MELEE_ATTACK:
+                        // 左手攻击 - 在第21帧触发伤害
+                        // 每10帧记录一次日志，方便调试
+                        if (animationTicks % 10 == 0) {
+                            System.out.println("【左手近战攻击】当前进度 - 第" + animationTicks + "帧 / " + LEFT_ATTACK_DURATION + "帧");
+                        }
+                        
+                        if (animationTicks == 21) {
+                            LivingEntity target = this.getTarget();
+                            if (target != null && this.distanceTo(target) < 6.0) {
+                                System.out.println("【左手近战攻击】触发伤害效果 - 第" + animationTicks + "帧");
+                                
+                                // 在动画关键帧应用伤害
+                                if (!this.getWorld().isClient()) {
+                                    // 服务器端处理伤害
+                                    target.damage(this.getDamageSources().mobAttack(this), 8.0f); // 近战伤害为8点
+                                    
+                                    // 添加击退效果
+                                    double knockbackStrength = 1.2;
+                                    double xRatio = Math.sin(this.getYaw() * 0.017453292F);
+                                    double zRatio = -Math.cos(this.getYaw() * 0.017453292F);
+                                    target.takeKnockback(knockbackStrength, xRatio, zRatio);
+                                    
+                                    // 给予玩家短暂的缓慢效果
+                                    if (target instanceof PlayerEntity) {
+                                        ((PlayerEntity)target).addStatusEffect(
+                                            new StatusEffectInstance(StatusEffects.SLOWNESS, 60, 1), this);
+                                    }
+                                }
+                                
+                                // 播放攻击音效
+                                this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+                                    SoundRegistry.ENTITY_SUNFLOWER_JIN, SoundCategory.HOSTILE, 2.0f, 0.8f);
+                            }
+                        }
+                        break;
+                    
+                    case RIGHT_MELEE_ATTACK:
+                        // 右手攻击 - 在第40帧触发伤害（与视觉效果一致）
+                        // 每10帧记录一次日志，方便调试
+                        if (animationTicks % 10 == 0) {
+                            System.out.println("【右手近战攻击】当前进度 - 第" + animationTicks + "帧 / " + RIGHT_ATTACK_DURATION + "帧");
+                        }
+                        
+                        if (animationTicks == 40) {
+                            LivingEntity target = this.getTarget();
+                            if (target != null && this.distanceTo(target) < 6.0) {
+                                System.out.println("【右手近战攻击】触发伤害效果 - 第" + animationTicks + "帧");
+                                
+                                // 在动画关键帧应用伤害
+                                if (!this.getWorld().isClient()) {
+                                    // 服务器端处理伤害
+                                    target.damage(this.getDamageSources().mobAttack(this), 8.0f); // 近战伤害为8点
+                                    
+                                    // 添加击退效果
+                                    double knockbackStrength = 1.2;
+                                    double xRatio = Math.sin(this.getYaw() * 0.017453292F);
+                                    double zRatio = -Math.cos(this.getYaw() * 0.017453292F);
+                                    target.takeKnockback(knockbackStrength, xRatio, zRatio);
+                                    
+                                    // 给予玩家短暂的缓慢效果
+                                    if (target instanceof PlayerEntity) {
+                                        ((PlayerEntity)target).addStatusEffect(
+                                            new StatusEffectInstance(StatusEffects.SLOWNESS, 60, 1), this);
+                                    }
+                                }
+                                
+                                // 播放攻击音效
+                                this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+                                    SoundRegistry.ENTITY_SUNFLOWER_JIN, SoundCategory.HOSTILE, 2.0f, 0.8f);
+                            }
+                        }
+                        break;
+                        
+                    case KUWEI_STORM:
+                        // 死亡动画处理
+                        break;
+                        
+                    default:
+                        break;
+                }
+                
+                // 检查动画是否已经完成
+                if (animationTicks >= animationDuration) {
+                    // 记录上一个动画类型
+                    AnimationType completedAnimation = currentAnimation;
+                    
+                    // 重置为IDLE状态
+                    currentAnimation = AnimationType.IDLE;
+                    animationTicks = 0;
+                    this.dataTracker.set(DATA_ANIMATION_ID, 0); // 重置动画帧追踪器
+                    isAnimationLocked = false;
+                    
+                    System.out.println("动画已完成，重置为IDLE状态");
+                    
+                    // 根据完成的动画类型增加普通攻击计数
+                    if (completedAnimation == AnimationType.LEFT_MELEE_ATTACK || 
+                        completedAnimation == AnimationType.RIGHT_MELEE_ATTACK || 
+                        completedAnimation == AnimationType.RANGED_ATTACK) {
+                        normalAttackCounter++;
+                        System.out.println("普通攻击计数增加: " + normalAttackCounter + " (完成的动画: " + completedAnimation + ")");
+                        
+                        // 在普通攻击动画完成后开始攻击冷却
+                        attackCooldown = ATTACK_COOLDOWN_TIME;
+                        System.out.println("攻击冷却开始: " + ATTACK_COOLDOWN_TIME + " ticks (3.5秒)");
+                    }
+                    
+                    // 保存上一次的动画类型
+                    lastAnimation = completedAnimation;
+                    
+                    // 数据追踪器更新 - 确保IDLE状态被正确设置
+                    this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.IDLE.ordinal());
+                    
+                    // 触发IDLE动画
+                    forceTriggerAnimation("controller", "idle");
+                    
+                    // 如果在服务器端，向客户端发送状态更新
+                    if (!this.getWorld().isClient()) {
+                        try {
+                            this.getWorld().sendEntityStatus(this, (byte)10);
+                            System.out.println("向客户端发送动画重置通知");
+                        } catch (Exception e) {
+                            System.out.println("发送动画重置通知时出错: " + e.getMessage());
+                        }
+                    }
+                }
+            }
+            
+            // AI决策 - 只有在IDLE状态且没有锁定时才执行
+            if (this.currentAnimation == AnimationType.IDLE && !isAnimationLocked) {
+                // 获取当前目标
+                LivingEntity target = this.getTarget();
+                
+                if (target != null) {
+                    double distanceToTarget = this.distanceTo(target);
+                    
+                    // 执行新的攻击模式
+                    executeAttackPattern(target, distanceToTarget);
+                }
+            }
+            
+            // 更新BOSS血条
+            if (!this.getWorld().isClient()) {
+                this.bossBar.setPercent(this.getHealth() / this.getMaxHealth());
+            }
+
+            // 添加这段代码来确保BOSS始终面向目标
+            // 但在播放死亡动画时不旋转
+            LivingEntity target = this.getTarget();
+            if (target != null && !isPlayingDeathAnimation) { // 添加死亡动画判断
+                // 计算朝向目标的角度
+                double deltaX = target.getX() - this.getX();
+                double deltaZ = target.getZ() - this.getZ();
+                float yaw = (float) Math.toDegrees(Math.atan2(deltaZ, deltaX)) - 90.0F;
+                
+                // 平滑旋转
+                float currentYaw = this.getYaw();
+                float yawDifference = MathHelper.wrapDegrees(yaw - currentYaw);
+                
+                // 限制旋转速度
+                float maxRotation = 10.0F; // 每tick最大旋转角度
+                if (Math.abs(yawDifference) > maxRotation) {
+                    yawDifference = Math.signum(yawDifference) * maxRotation;
+                }
+                
+                // 应用新的朝向
+                this.setYaw(currentYaw + yawDifference);
+                this.bodyYaw = this.getYaw();
+                this.headYaw = this.getYaw();
+            }
+            
+            // 检查并清理任何可能残留的太阳实体
+            if (!this.getWorld().isClient() && this.currentAnimation != AnimationType.SUNBEAM) {
+                for (SunEntity sun : new ArrayList<>(suns)) {
+                    if (sun != null && (!sun.isAlive() || sun.isRemoved())) {
+                        suns.remove(sun);
+                        System.out.println("移除了一个无效的太阳实体");
+                    }
+                }
+            }
+            
+            // 在tick开始时检查当前动画状态
             if (currentAnimation != AnimationType.SUNBEAM && !suns.isEmpty()) {
                 System.out.println("检测到非阳光射线状态下的残留太阳，执行清理");
                 cleanupSuns();
-                cleanupAllSunsInWorld();
             }
-        }
-        
-        super.tick();
-
-        // 如果正在播放死亡动画，只处理死亡动画相关逻辑
-        if (isPlayingDeathAnimation) {
-            // 确保不旋转和移动
-            this.setVelocity(0, this.getVelocity().y, 0);
+        } catch (Exception e) {
+            // 捕获所有异常，防止实体崩溃
+            System.out.println("实体处理tick时出现异常: " + e.getMessage());
+            e.printStackTrace();
             
-            // 更新死亡动画
-            if (currentAnimation == AnimationType.KUWEI_STORM) {
-                animationTicks++;
-                
-                // 检查死亡动画是否已经完成
-                if (animationTicks >= KUWEI_STORM_DURATION) {
-                    // 动画完成后真正处理死亡
-                    System.out.println("死亡动画播放完毕，现在真正处理死亡");
-                    isPlayingDeathAnimation = false;
-                    
-                    // 确保实体真正死亡
-                    if (deathCause != null && !this.getWorld().isClient()) {
-                        // 不要设置血量为0，直接调用死亡处理逻辑
-                        // this.setHealth(0); - 这行可能导致触发原版死亡动画
-                        actuallyDie(deathCause);
-                        
-                        // 标记为应该移除，直接处理移除逻辑
-                        shouldBeRemoved = true;
-                        super.remove(RemovalReason.KILLED);
-                    }
+            // 尝试恢复到安全状态
+            try {
+                if (isAnimationLocked) {
+                    // 解除锁定状态
+                    isAnimationLocked = false;
+                    animationLockTimer = 0;
+                    System.out.println("异常处理：强制解除动画锁定");
                 }
-            } else {
-                // 如果当前动画不是死亡动画，但标志是死亡状态，则强制设置为死亡动画
-                System.out.println("检测到死亡状态但动画不正确，强制设置为死亡动画");
-                this.currentAnimation = AnimationType.KUWEI_STORM;
-                this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.KUWEI_STORM.ordinal());
-                this.animationTicks = 0;
-                triggerAnim("controller", "kuwei");
-            }
-            
-            // 死亡动画播放时跳过其他逻辑
-            return;
-        }
-
-        // 更新攻击冷却时间
-        if (attackCooldown > 0) {
-            attackCooldown--;
-        }
-
-        // 如果应该旋转，则在AI处理前强制设置朝向
-        if (shouldRotate) {
-            // 强制设置朝向
-            this.setYaw(rotationYaw);
-            this.bodyYaw = rotationYaw;
-            this.headYaw = rotationYaw;
-            
-            // 如果AI未被禁用，则禁用AI
-            if (!aiDisabled) {
-                // 保存当前目标
-                this.setAiDisabled(true);
-                aiDisabled = true;
-                System.out.println("BOSS旋转：AI已禁用，当前角度: " + rotationYaw);
-            }
-        } else if (aiDisabled) {
-            // 如果不应该旋转但AI被禁用，则恢复AI
-            this.setAiDisabled(false);
-            aiDisabled = false;
-            System.out.println("BOSS旋转：AI已恢复");
-        }
-        
-        // 技能冷却时间
-        if (seedBarrageCooldown > 0) seedBarrageCooldown--;
-        if (sunbeamCooldown > 0) sunbeamCooldown--;
-        if (petalStormCooldown > 0) petalStormCooldown--;
-        if (meleeAnimationTimer > 0) meleeAnimationTimer--;
-        
-        // 动画锁定计时器
-        if (animationLockTimer > 0) {
-            animationLockTimer--;
-            if (animationLockTimer <= 0) {
-                isAnimationLocked = false;
-                System.out.println("动画锁定已解除");
-            }
-        }
-        
-        // 检查是否到达半血且尚未触发
-        if (!isHalfHealthTriggered && this.getHealth() <= this.getMaxHealth() / 2) {
-            isHalfHealthTriggered = true;
-            // 立即释放花瓣风暴
-            if (!isAnimationLocked && this.currentAnimation == AnimationType.IDLE) {
-                System.out.println("【半血触发】立即释放花瓣风暴！");
-                startPetalStormSkill();
-                normalAttackCounter = 0; // 重置攻击计数
-                currentSkillIndex = 0;   // 重置技能序列
-            }
-        }
-        
-        // 检查当前动画是否在播放中
-        if (currentAnimation != AnimationType.IDLE) {
-            // 确保currentAnimation与tracker保持同步
-            byte trackedAnim = this.dataTracker.get(ANIMATION_STATE);
-            if (trackedAnim != this.currentAnimation.ordinal()) {
-                System.out.println("【同步警告】当前动画(" + this.currentAnimation + ")与追踪器(" + 
-                                 AnimationType.values()[trackedAnim] + ")不一致，正在同步");
-                this.currentAnimation = AnimationType.values()[trackedAnim];
-            }
-            
-            animationTicks++;
-            int animationDuration = getAnimationDuration(currentAnimation);
-            
-            // 处理动画帧效果
-            // 技能效果触发通常在动画的1/3处
-            int effectFrame = animationDuration / 3;
-            effectFrame = Math.max(10, effectFrame); // 确保至少在第10帧触发
-            
-            // 根据当前动画类型执行对应效果
-            switch (this.currentAnimation) {
-                case SEED_BARRAGE:
-                    // 葵花籽弹幕 - 每5帧发射一次，连续发射多次
-                    if (animationTicks % 5 == 0 && animationTicks <= effectFrame + 20) {
-                        LivingEntity seedTarget = this.getTarget();
-                        if (seedTarget != null) {
-                            System.out.println("【葵花籽弹幕】发射种子 - 第" + animationTicks + "帧");
-                            
-                            // 每次发射5颗种子，形成密集弹幕
-                            for (int i = 0; i < 5; i++) {
-                                fireSeedBarrage(seedTarget);
-                            }
-                            
-                            // 播放弹幕技能音效
-                            this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-                                SoundRegistry.ENTITY_SUNFLOWER_DANMU, SoundCategory.HOSTILE, 2.0f, 1.0f);
+                
+                // 仅尝试恢复到IDLE状态，不尝试任何其他复杂处理
+                if (currentAnimation != AnimationType.IDLE && !isPlayingDeathAnimation) {
+                    currentAnimation = AnimationType.IDLE;
+                    dataTracker.set(ANIMATION_STATE, (byte)AnimationType.IDLE.ordinal());
+                    animationTicks = 0;
+                    System.out.println("异常处理：重置为IDLE状态");
+                    
+                    // 尝试发送IDLE状态到客户端
+                    if (!this.getWorld().isClient()) {
+                        try {
+                            this.getWorld().sendEntityStatus(this, (byte)10);
+                        } catch (Exception ex) {
+                            // 忽略发送状态时的错误
                         }
                     }
-                    break;
-                    
-                case SUNBEAM:
-                    // 阳光灼烧射线 - 在每一帧都调用，内部处理具体逻辑
-                    if (this.getTarget() != null) {
-                        createSunbeamEffect(this.getTarget());
-                    }
-                    break;
-                    
-                case PETAL_STORM:
-                    // 花瓣风暴 - 在特定帧触发效果
-                    if (animationTicks == effectFrame) {
-                        System.out.println("【花瓣风暴】触发效果 - 第" + animationTicks + "帧");
-                        createPetalStormEffect();
-                        
-                        // 播放强力音效
-                        this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-                            SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 1.0f, 0.5f);
-                    }
-                    break;
-                    
-                case RANGED_ATTACK:
-                    // 处理远程普通攻击效果
-                    handleRangedAttackEffect(animationTicks);
-                    break;
-                    
-                case LEFT_MELEE_ATTACK:
-                case RIGHT_MELEE_ATTACK:
-                    // 近战攻击 - 在特定帧触发伤害
-                    if (animationTicks == effectFrame) {
-                        LivingEntity target = this.getTarget();
-                        if (target != null && this.distanceTo(target) < 6.0) {
-                            System.out.println("【近战攻击】触发伤害效果 - 第" + animationTicks + "帧");
-                            
-                            // 在动画关键帧应用伤害，而不是在executeAttackPattern方法中
-                            if (!this.getWorld().isClient()) {
-                                // 服务器端处理伤害
-                                target.damage(this.getDamageSources().mobAttack(this), 8.0f); // 近战伤害为8点
-                                
-                                // 添加击退效果
-                                double knockbackStrength = 1.2;
-                                double xRatio = Math.sin(this.getYaw() * 0.017453292F);
-                                double zRatio = -Math.cos(this.getYaw() * 0.017453292F);
-                                target.takeKnockback(knockbackStrength, xRatio, zRatio);
-                                
-                                // 给予玩家短暂的缓慢效果
-                                if (target instanceof PlayerEntity) {
-                                    ((PlayerEntity)target).addStatusEffect(
-                                        new StatusEffectInstance(StatusEffects.SLOWNESS, 60, 1), this);
-                                }
-                            }
-                            
-                            // 播放攻击音效
-                            this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-                                SoundRegistry.ENTITY_SUNFLOWER_JIN, SoundCategory.HOSTILE, 2.0f, 0.8f);
-                        }
-                    }
-                    break;
-                    
-                case KUWEI_STORM:
-                    // 死亡动画处理
-                    break;
-                    
-                default:
-                    break;
-            }
-            
-            // 检查动画是否已经完成
-            if (animationTicks >= animationDuration) {
-                // 记录上一个动画类型
-                AnimationType completedAnimation = currentAnimation;
-                
-                // 重置为IDLE状态
-                currentAnimation = AnimationType.IDLE;
-                animationTicks = 0;
-                isAnimationLocked = false;
-                
-                System.out.println("动画已完成，重置为IDLE状态");
-                
-                // 根据完成的动画类型增加普通攻击计数
-                if (completedAnimation == AnimationType.LEFT_MELEE_ATTACK || 
-                    completedAnimation == AnimationType.RIGHT_MELEE_ATTACK || 
-                    completedAnimation == AnimationType.RANGED_ATTACK) {
-                    normalAttackCounter++;
-                    System.out.println("普通攻击计数增加: " + normalAttackCounter + " (完成的动画: " + completedAnimation + ")");
-                    
-                    // 在普通攻击动画完成后开始攻击冷却
-                    attackCooldown = ATTACK_COOLDOWN_TIME;
-                    System.out.println("攻击冷却开始: " + ATTACK_COOLDOWN_TIME + " ticks (3.5秒)");
                 }
-                
-                // 保存上一次的动画类型
-                lastAnimation = completedAnimation;
-                
-                // 数据追踪器更新
-                this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.IDLE.ordinal());
-                
-                // 触发IDLE动画
-                triggerAnim("controller", "idle");
+            } catch (Exception ex) {
+                // 忽略异常恢复过程中的错误
+                System.out.println("尝试恢复状态时出错: " + ex.getMessage());
             }
-        }
-        
-        // AI决策 - 只有在IDLE状态且没有锁定时才执行
-        if (this.currentAnimation == AnimationType.IDLE && !isAnimationLocked) {
-            // 获取当前目标
-            LivingEntity target = this.getTarget();
-            
-            if (target != null) {
-                double distanceToTarget = this.distanceTo(target);
-                
-                // 执行新的攻击模式
-                executeAttackPattern(target, distanceToTarget);
-            }
-        }
-        
-        // 更新BOSS血条
-        if (!this.getWorld().isClient()) {
-            this.bossBar.setPercent(this.getHealth() / this.getMaxHealth());
-        }
-
-        // 添加这段代码来确保BOSS始终面向目标
-        // 但在播放死亡动画时不旋转
-        LivingEntity target = this.getTarget();
-        if (target != null && !isPlayingDeathAnimation) { // 添加死亡动画判断
-            // 计算朝向目标的角度
-            double deltaX = target.getX() - this.getX();
-            double deltaZ = target.getZ() - this.getZ();
-            float yaw = (float) Math.toDegrees(Math.atan2(deltaZ, deltaX)) - 90.0F;
-            
-            // 平滑旋转
-            float currentYaw = this.getYaw();
-            float yawDifference = MathHelper.wrapDegrees(yaw - currentYaw);
-            
-            // 限制旋转速度
-            float maxRotation = 10.0F; // 每tick最大旋转角度
-            if (Math.abs(yawDifference) > maxRotation) {
-                yawDifference = Math.signum(yawDifference) * maxRotation;
-            }
-            
-            // 应用新的朝向
-            this.setYaw(currentYaw + yawDifference);
-            this.bodyYaw = this.getYaw();
-            this.headYaw = this.getYaw();
-        }
-        
-        // 检查并清理任何可能残留的太阳实体
-        if (!this.getWorld().isClient() && this.currentAnimation != AnimationType.SUNBEAM) {
-            for (SunEntity sun : new ArrayList<>(suns)) {
-                if (sun != null && (!sun.isAlive() || sun.isRemoved())) {
-                    suns.remove(sun);
-                    System.out.println("移除了一个无效的太阳实体");
-                }
-            }
-        }
-        
-        // 在tick开始时检查当前动画状态
-        if (currentAnimation != AnimationType.SUNBEAM && !suns.isEmpty()) {
-            System.out.println("检测到非阳光射线状态下的残留太阳，执行清理");
-            cleanupSuns();
         }
     }
     
@@ -660,12 +772,21 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     }
 
     private void startPetalStormSkill() {
-        if (this.currentAnimation != AnimationType.IDLE) {
-            System.out.println("无法开始花瓣风暴：当前已有其他动画: " + this.currentAnimation);
-            return;
-        }
+        // 移除对当前动画状态的检查，允许从任何状态切换到花瓣风暴
+        // 这对于半血触发特别重要
         
         System.out.println("开始花瓣风暴技能");
+        
+        // 强制清理所有资源，确保没有冲突
+        if (this.currentAnimation == AnimationType.SUNBEAM) {
+            cleanupSuns();
+        }
+        
+        // 强制解除动画锁定
+        this.isAnimationLocked = false;
+        this.animationLockTimer = 0;
+        
+        // 设置新动画
         setAnimation(AnimationType.PETAL_STORM);
         petalStormCooldown = 10; // 短冷却，确保技能序列
         
@@ -677,18 +798,17 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         sendMessageToNearbyPlayers("§e向日葵BOSS使用了§d花瓣风暴§e技能！§c小心！");
     }
 
-    // 修改葵花籽弹幕方法，调整发射位置
+    // 修改葵花籽弹幕方法，调整伤害设置
     private void fireSeedBarrage(LivingEntity target) {
         if (target == null || this.getWorld().isClient()) return;
         
         // 调整发射位置计算，使其与视觉模型匹配
-        // 由于视觉模型是原始高度的1.5倍，我们需要相应调整头部高度
-        double modelScale = 1.5; // 与渲染器中的缩放因子匹配
-        double headHeight = this.getHeight() * 0.65; // 将头部位置调低一些，从0.75降到0.65
+        double modelScale = 1.5; 
+        double headHeight = this.getHeight() * 0.65;
         
         // 考虑实体朝向，确保从花盘正面发射
-        float yaw = this.getYaw() * 0.017453292F; // 转换为弧度
-        double offsetX = -Math.sin(yaw) * 0.5 * modelScale; // 考虑模型缩放
+        float yaw = this.getYaw() * 0.017453292F;
+        double offsetX = -Math.sin(yaw) * 0.5 * modelScale;
         double offsetZ = Math.cos(yaw) * 0.5 * modelScale;
         
         Vec3d position = this.getPos().add(offsetX, headHeight, offsetZ);
@@ -716,14 +836,13 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 创建种子实体
             SunflowerSeedEntity seed = new SunflowerSeedEntity(this.getWorld(), this);
             seed.setPosition(position.x, position.y, position.z);
-            seed.setVelocity(direction.x, direction.y, direction.z, 1.5f, 0f);
+            // 增加发射速度从1.5f到2.0f，因为没有追踪功能了
+            seed.setVelocity(direction.x, direction.y, direction.z, 2.0f, 0f);
             seed.setOwner(this);
             
-            // 设置追踪目标
-            seed.setHomingTarget(target);
-            
-            // 设置为普通攻击种子(非技能攻击)
-            seed.setSkillAttack(false);
+            // 设置为技能攻击种子并设置伤害值
+            seed.setSkillAttack(true);
+            seed.setDamage(12.0f); // 设置技能种子的伤害为6颗心
             
             // 添加到世界
             this.getWorld().spawnEntity(seed);
@@ -731,7 +850,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         // 播放发射音效
         this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-            SoundEvents.ENTITY_SNOWBALL_THROW, SoundCategory.HOSTILE, 1.0f, 0.6f);
+            SoundRegistry.ENTITY_SUNFLOWER_DANMU, SoundCategory.HOSTILE, 2.0f, 1.0f);
     }
     
     @Override
@@ -739,40 +858,96 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         // 使用更简单的控制器配置
         controllers.add(
             new AnimationController<>(this, "controller", 0, event -> {
-                // 使用更简单的动画状态处理方式
-                AnimationType currentAnimationType = getAnimation();
-                
-                // 选择要播放的动画
-                RawAnimation animation;
-                switch (currentAnimationType) {
-                    case LEFT_MELEE_ATTACK:
-                        animation = LEFT_ATTACK_ANIM;
-                        break;
-                    case RIGHT_MELEE_ATTACK:
-                        animation = RIGHT_MELEE_ATTACK_ANIM;
-                        break;
-                    case RANGED_ATTACK:
-                        animation = RANGED_ATTACK_ANIM;
-                        break;
-                    case SEED_BARRAGE:
-                        animation = SEED_BARRAGE_ANIM;
-                        break;
-                    case SUNBEAM:
-                        animation = SUNBEAM_ANIM;
-                        break;
-                    case PETAL_STORM:
-                        animation = PETAL_STORM_ANIM;
-                        break;
-                    case KUWEI_STORM:
-                        animation = KUWEI_STORM_ANIM;
-                        break;
-                    default:
-                        animation = IDLE_ANIM;
-                        break;
+                try {
+                    // 获取当前动画状态
+                    AnimationType currentAnimationType = getAnimation();
+                    
+                    // 限制DEBUG日志输出频率，避免大量无用日志
+                    if (this.getWorld().isClient() && this.age % 5 == 0) {
+                        System.out.println("动画控制器 - 当前动画: " + currentAnimationType);
+                    }
+                    
+                    // 检查当前是否播放完了非循环动画
+                    if (event.getController().hasAnimationFinished() && currentAnimationType != AnimationType.IDLE) {
+                        // 非循环动画已经结束，强制切换回IDLE
+                        System.out.println("检测到非循环动画已结束，强制切换回IDLE");
+                        
+                        // 强制重置动画状态
+                        this.currentAnimation = AnimationType.IDLE;
+                        this.animationTicks = 0;
+                        
+                        // 发送状态更新给服务器/其他客户端
+                        if (!this.getWorld().isClient()) {
+                            // 向客户端发送动画重置通知
+                            this.getWorld().sendEntityStatus(this, (byte)10);
+                            // 更新数据追踪器
+                            this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.IDLE.ordinal());
+                        }
+                        
+                        // 直接返回IDLE动画
+                        return event.setAndContinue(IDLE_ANIM);
+                    }
+                    
+                    // RIGHT_MELEE_ATTACK特殊处理：如果是右手攻击且已运行超过50帧，检查是否应该强制结束
+                    if (currentAnimationType == AnimationType.RIGHT_MELEE_ATTACK && 
+                            animationTicks >= 50 && 
+                            event.getController().getAnimationState() != AnimationController.State.STOPPED) {
+                        
+                        System.out.println("右手攻击已运行50帧以上，检查是否应强制结束");
+                        
+                        // 检查是否已经执行了伤害逻辑 (第40帧)
+                        if (animationTicks >= 45) {
+                            // 已经触发了伤害，直接强制结束动画
+                            System.out.println("右手攻击已完成伤害阶段，强制切换到IDLE");
+                            
+                            // 强制重置动画状态
+                            event.getController().forceAnimationReset();
+                            
+                            // 更新实体状态
+                            this.currentAnimation = AnimationType.IDLE;
+                            this.animationTicks = 0;
+                            
+                            // 强制切换动画
+                            return event.setAndContinue(IDLE_ANIM);
+                        }
+                    }
+                    
+                    // 选择要播放的动画
+                    RawAnimation animation;
+                    switch (currentAnimationType) {
+                        case LEFT_MELEE_ATTACK:
+                            animation = LEFT_ATTACK_ANIM;
+                            break;
+                        case RIGHT_MELEE_ATTACK:
+                            animation = RIGHT_MELEE_ATTACK_ANIM;
+                            break;
+                        case RANGED_ATTACK:
+                            animation = RANGED_ATTACK_ANIM;
+                            break;
+                        case SEED_BARRAGE:
+                            animation = SEED_BARRAGE_ANIM;
+                            break;
+                        case SUNBEAM:
+                            animation = SUNBEAM_ANIM;
+                            break;
+                        case PETAL_STORM:
+                            animation = PETAL_STORM_ANIM;
+                            break;
+                        case KUWEI_STORM:
+                            animation = KUWEI_STORM_ANIM;
+                            break;
+                        default:
+                            animation = IDLE_ANIM;
+                            break;
+                    }
+                    
+                    // 直接设置动画，使用setAndContinue而不是直接修改状态
+                    return event.setAndContinue(animation);
+                } catch (Exception e) {
+                    System.out.println("动画控制器出错: " + e.getMessage());
+                    e.printStackTrace();
+                    return PlayState.STOP;
                 }
-                
-                // 直接设置动画，不使用事件系统
-                return event.setAndContinue(animation);
             })
             .triggerableAnim("idle", IDLE_ANIM)
             .triggerableAnim("left_attack", LEFT_ATTACK_ANIM)
@@ -824,17 +999,40 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         // 检查是否到达半血
         if (damaged && !isHalfHealthTriggered && this.getHealth() <= this.getMaxHealth() / 2) {
-            // 半血首次触发 - 在下一个tick中处理，避免在damage期间改变状态
+            // 半血首次触发 - 立即处理，不再等待下一个tick
             isHalfHealthTriggered = true;
-            System.out.println("BOSS血量降至半血，将在下一个Tick触发花瓣风暴");
+            System.out.println("BOSS血量降至半血，立即触发花瓣风暴");
+            
+            // 如果当前正在执行阳光射线技能，先中断它
+            if (this.currentAnimation == AnimationType.SUNBEAM) {
+                System.out.println("中断阳光射线技能，准备执行花瓣风暴");
+                cleanupSuns();
+                // 强制结束当前动画
+                this.animationTicks = getAnimationDuration(AnimationType.SUNBEAM);
+                // 解除动画锁定，允许切换到花瓣风暴
+                this.isAnimationLocked = false;
+                this.animationLockTimer = 0;
+            }
+            
+            // 直接开始花瓣风暴技能，不等待IDLE状态
+            try {
+                // 短暂延迟一帧，确保资源清理完成
+                if (!this.getWorld().isClient()) {
+                    startPetalStormSkill();
+                    normalAttackCounter = 0; // 重置攻击计数
+                    currentSkillIndex = 0;   // 重置技能序列
+                }
+            } catch (Exception e) {
+                System.out.println("触发花瓣风暴时出错: " + e.getMessage());
+            }
         }
         
-        // 如果受到伤害且正在释放阳光射线技能，中断技能并清理太阳
-        if (this.currentAnimation == AnimationType.SUNBEAM) {
-            System.out.println("受到伤害，中断阳光射线技能");
+        // 只在受到大量伤害时才中断阳光射线技能
+        if (damaged && this.currentAnimation == AnimationType.SUNBEAM && amount >= 10.0f && !isHalfHealthTriggered) {
+            System.out.println("受到大量伤害(" + amount + ")，中断阳光射线技能");
             cleanupSuns();
-            this.currentAnimation = AnimationType.IDLE;
-            this.animationTicks = 0;
+            // 重置为IDLE状态
+            setAnimation(AnimationType.IDLE);
         }
         
         return damaged;
@@ -866,7 +1064,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         animationLockTimer = getAnimationDuration(AnimationType.KUWEI_STORM);
         
         // 直接触发死亡动画
-        triggerAnim("controller", "kuwei");
+        forceTriggerAnimation("controller", "kuwei");
         
         // 向附近的玩家广播消息
         sendMessageToNearbyPlayers("向日葵BOSS开始播放死亡动画");
@@ -1013,8 +1211,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                               TrackedDataHandlerRegistry.BOOLEAN), false);
         
         // 添加当前动画帧追踪
-        this.dataTracker.startTracking(DataTracker.registerData(SunflowerBossEntity.class, 
-                              TrackedDataHandlerRegistry.INTEGER), 0);
+        this.dataTracker.startTracking(DATA_ANIMATION_ID, 0);
     }
 
     // 修改setAnimation方法以同步到客户端
@@ -1029,7 +1226,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 System.out.println("开始播放死亡动画");
                 
                 // 直接触发动画
-                triggerAnim("controller", "kuwei");
+                forceTriggerAnimation("controller", "kuwei");
                 return;
             }
             
@@ -1044,6 +1241,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             currentAnimation = animation;
             dataTracker.set(ANIMATION_STATE, (byte)animation.ordinal());
             animationTicks = 0;
+            dataTracker.set(DATA_ANIMATION_ID, 0); // 重置动画帧计数器
             
             // 非IDLE状态锁定动画
             if (animation != AnimationType.IDLE) {
@@ -1054,27 +1252,44 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 使用triggerAnim直接触发动画
             switch(animation) {
                 case LEFT_MELEE_ATTACK:
-                    triggerAnim("controller", "left_attack");
+                    System.out.println("开始左手攻击动画 - 持续" + LEFT_ATTACK_DURATION + "帧，将在第21帧触发伤害");
+                    forceTriggerAnimation("controller", "left_attack");
                     break;
                 case RIGHT_MELEE_ATTACK:
-                    triggerAnim("controller", "right_attack");
+                    System.out.println("开始右手攻击动画 - 持续" + RIGHT_ATTACK_DURATION + "帧，将在第40帧触发伤害");
+                    forceTriggerAnimation("controller", "right_attack");
                     break;
                 case RANGED_ATTACK:
-                    triggerAnim("controller", "ranged");
+                    forceTriggerAnimation("controller", "ranged");
                     break;
                 case SEED_BARRAGE:
-                    triggerAnim("controller", "seed_barrage");
+                    forceTriggerAnimation("controller", "seed_barrage");
                     break;
                 case SUNBEAM:
-                    triggerAnim("controller", "sunbeam");
+                    forceTriggerAnimation("controller", "sunbeam");
                     break;
                 case PETAL_STORM:
-                    triggerAnim("controller", "petal_storm");
+                    forceTriggerAnimation("controller", "petal_storm");
                     break;
                 case IDLE:
                 default:
-                    triggerAnim("controller", "idle");
+                    forceTriggerAnimation("controller", "idle");
                     break;
+            }
+            
+            // 发送状态更新到客户端
+            if (!this.getWorld().isClient()) {
+                try {
+                    // 先设置好追踪数据
+                    dataTracker.set(ANIMATION_STATE, (byte)animation.ordinal());
+                    
+                    // 向客户端发送状态更新
+                    this.getWorld().sendEntityStatus(this, (byte)10);
+                    System.out.println("向客户端发送动画状态更新: " + animation + " (状态码: " + animation.ordinal() + ")");
+                } catch (Exception e) {
+                    System.out.println("发送动画状态更新时出错: " + e.getMessage());
+                    e.printStackTrace();
+                }
             }
         } catch (Exception e) {
             System.out.println("设置动画时出错: " + e.getMessage());
@@ -1085,24 +1300,38 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     // 修改getAnimation方法从追踪器读取动画状态
     public AnimationType getAnimation() {
         try {
-            // 直接从数据追踪器读取动画状态
-            byte animationId = this.dataTracker.get(ANIMATION_STATE);
-            if (animationId >= 0 && animationId < AnimationType.values().length) {
-                AnimationType animType = AnimationType.values()[animationId];
-                // 防止客户端动画状态与当前动画不同步
-                if (animType != this.currentAnimation) {
-                    System.out.println("动画状态不同步：追踪器(" + animType + ")与当前(" + this.currentAnimation + ")不一致");
-                    this.currentAnimation = animType;
+            // 直接使用已保存的动画状态
+            // 这在客户端特别重要，因为这里我们不希望从追踪器读取（可能有延迟）
+            if (this.getWorld() != null && this.getWorld().isClient()) {
+                // 在客户端，优先使用当前保存的状态
+                // 但也检查追踪器是否有更新
+                byte animationId = this.dataTracker.get(ANIMATION_STATE);
+                AnimationType trackedAnimType = AnimationType.IDLE;
+                
+                if (animationId >= 0 && animationId < AnimationType.values().length) {
+                    trackedAnimType = AnimationType.values()[animationId];
+                    
+                    // 如果追踪器状态与当前不同，更新日志但不一定更新状态
+                    if (trackedAnimType != this.currentAnimation) {
+                        System.out.println("客户端动画状态差异: 当前=" + this.currentAnimation + 
+                                        ", 追踪器=" + trackedAnimType);
+                    }
                 }
-                return animType;
+                
+                return this.currentAnimation;
             } else {
-                System.out.println("警告：无效的动画ID: " + animationId + "，重置为IDLE");
-                this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.IDLE.ordinal());
-                this.currentAnimation = AnimationType.IDLE;
-                return AnimationType.IDLE;
+                // 服务端，直接从追踪器获取状态
+                byte animationId = this.dataTracker.get(ANIMATION_STATE);
+                if (animationId >= 0 && animationId < AnimationType.values().length) {
+                    AnimationType animType = AnimationType.values()[animationId];
+                    return animType;
+                }
             }
+            
+            return currentAnimation; // 默认返回当前缓存的状态
         } catch (Exception e) {
             System.out.println("获取动画状态时出错: " + e.getMessage());
+            e.printStackTrace();
             return AnimationType.IDLE;
         }
     }
@@ -1371,29 +1600,38 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
     // 在技能结束时清理
     private void cleanupSuns() {
-        System.out.println("开始清理所有太阳实体，当前数量: " + suns.size());
-        
         try {
-            // 使用新的ArrayList来避免并发修改异常
-            for (SunEntity sun : new ArrayList<>(suns)) {
-                if (sun != null) {
-                    // 标记为已吸收
+            System.out.println("开始清理所有太阳实体，当前数量: " + suns.size());
+            
+            // 复制列表，避免并发修改异常
+            List<SunEntity> sunsCopy = new ArrayList<>(suns);
+            
+            // 移除所有太阳
+            for (SunEntity sun : sunsCopy) {
+                if (sun != null && sun.isAlive()) {
+                    // 设置为已吸收，这会触发删除逻辑
                     sun.setAbsorbed(true);
-                    // 立即移除实体
                     sun.discard();
-                    // 从世界中移除
-                    sun.remove(Entity.RemovalReason.DISCARDED);
-                    // 从列表中移除
-                    suns.remove(sun);
                     
-                    System.out.println("成功移除一个太阳实体");
+                    try {
+                        // 强制移除
+                        sun.remove(Entity.RemovalReason.DISCARDED);
+                        System.out.println("成功移除一个太阳实体");
+                    } catch (Exception e) {
+                        System.out.println("移除太阳实体时出错: " + e.getMessage());
+                    }
                 }
             }
             
-            // 清空列表和计数
+            // 清空太阳列表
             suns.clear();
             sunPositions.clear();
+            
+            // 重置吸收计数
             absorbedSunCount = 0;
+            
+            // 为了以防万一，还删除世界中所有的太阳实体
+            cleanupAllSunsInWorld();
             
             System.out.println("太阳实体清理完成");
         } catch (Exception e) {
@@ -1460,76 +1698,82 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
     // 添加一个辅助方法来创建光束，避免代码重复
     private void createBeam(Vec3d start, double angleRadians, double beamLength) {
-        // 水平方向向量
-        double horizontalX = Math.cos(angleRadians);
-        double horizontalZ = Math.sin(angleRadians);
-        
-        // 25度角朝下的方向向量
-        double verticalComponent = -Math.tan(Math.toRadians(25));
-        Vec3d direction = new Vec3d(horizontalX, verticalComponent, horizontalZ).normalize();
-        
-        // 光束终点
-        Vec3d end = start.add(direction.multiply(beamLength));
-        
-        // 创建光束粒子
-        if (this.getWorld() instanceof ServerWorld serverWorld) {
-            // 主光束 - 减少粒子密度
-            for (double d = 0; d < beamLength; d += 0.8) { // 进一步减少粒子密度
-                Vec3d pos = start.add(direction.multiply(d));
-                
-                // 主光束 - 白色
-                serverWorld.spawnParticles(
-                    ParticleTypes.END_ROD,
-                    pos.x, pos.y, pos.z,
-                    1,
-                    0.05, 0.05, 0.05, 0
-                );
-                
-                // 极低概率生成火焰粒子
-                if (random.nextFloat() < 0.1) { // 降低火焰粒子生成概率
+        try {
+            // 水平方向向量
+            double horizontalX = Math.cos(angleRadians);
+            double horizontalZ = Math.sin(angleRadians);
+            
+            // 25度角朝下的方向向量
+            double verticalComponent = -Math.tan(Math.toRadians(25));
+            Vec3d direction = new Vec3d(horizontalX, verticalComponent, horizontalZ).normalize();
+            
+            // 光束终点
+            Vec3d end = start.add(direction.multiply(beamLength));
+            
+            // 创建光束粒子
+            if (this.getWorld() instanceof ServerWorld serverWorld) {
+                // 主光束 - 减少粒子密度
+                for (double d = 0; d < beamLength; d += 0.8) { // 进一步减少粒子密度
+                    Vec3d pos = start.add(direction.multiply(d));
+                    
+                    // 主光束 - 白色
                     serverWorld.spawnParticles(
-                        ParticleTypes.FLAME,
+                        ParticleTypes.END_ROD,
                         pos.x, pos.y, pos.z,
                         1,
-                        0.1, 0.1, 0.1, 0.05
+                        0.05, 0.05, 0.05, 0
                     );
+                    
+                    // 极低概率生成火焰粒子
+                    if (random.nextFloat() < 0.1) { // 降低火焰粒子生成概率
+                        serverWorld.spawnParticles(
+                            ParticleTypes.FLAME,
+                            pos.x, pos.y, pos.z,
+                            1,
+                            0.1, 0.1, 0.1, 0.05
+                        );
+                    }
                 }
+                
+                // 只在光束末端生成一个小型爆炸效果
+                serverWorld.spawnParticles(
+                    ParticleTypes.EXPLOSION,
+                    end.x, end.y, end.z,
+                    1,
+                    0.2, 0.2, 0.2, 0.1
+                );
             }
             
-            // 只在光束末端生成一个小型爆炸效果
-            serverWorld.spawnParticles(
-                ParticleTypes.EXPLOSION,
-                end.x, end.y, end.z,
-                1,
-                0.2, 0.2, 0.2, 0.1
-            );
-        }
-        
-        // 伤害检测逻辑保持不变
-        Box beamBox = new Box(
-            Math.min(start.x, end.x) - 1.5, Math.min(start.y, end.y) - 1.5, Math.min(start.z, end.z) - 1.5,
-            Math.max(start.x, end.x) + 1.5, Math.max(start.y, end.y) + 1.5, Math.max(start.z, end.z) + 1.5
-        );
-        
-        List<PlayerEntity> players = this.getWorld().getEntitiesByClass(
-            PlayerEntity.class, beamBox, player -> !player.isSpectator() && player.isAlive()
-        );
-        
-        // 增加调试输出
-        if (!players.isEmpty()) {
-            System.out.println("阳光射线光束命中 " + players.size() + " 个玩家");
-        }
-        
-        for (PlayerEntity player : players) {
-            System.out.println("向玩家 " + player.getName().getString() + " 造成阳光射线伤害");
-            player.damage(this.getDamageSources().mobAttack(this), 16.0f);
-            player.setOnFireFor(10);
-            player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 200, 3));
-            player.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, 100, 1));
+            // 添加更详细的调试信息
+            System.out.println("创建光束 - 起点: " + start + ", 角度: " + Math.toDegrees(angleRadians) + "°, 长度: " + beamLength);
             
-            Vec3d knockback = player.getPos().subtract(this.getPos()).normalize();
-            player.setVelocity(knockback.x * 1.5, 0.5, knockback.z * 1.5);
-            player.velocityModified = true;
+            // 伤害检测逻辑
+            Box beamBox = new Box(
+                Math.min(start.x, end.x) - 1.5, Math.min(start.y, end.y) - 1.5, Math.min(start.z, end.z) - 1.5,
+                Math.max(start.x, end.x) + 1.5, Math.max(start.y, end.y) + 1.5, Math.max(start.z, end.z) + 1.5
+            );
+            
+            System.out.println("光束碰撞箱: " + beamBox);
+            
+            List<PlayerEntity> players = this.getWorld().getEntitiesByClass(
+                PlayerEntity.class, beamBox, player -> !player.isSpectator() && player.isAlive()
+            );
+            
+            System.out.println("检测到玩家数量: " + players.size());
+            
+            for (PlayerEntity player : players) {
+                System.out.println("对玩家 " + player.getName().getString() + " 造成阳光射线伤害");
+                player.damage(this.getDamageSources().mobAttack(this), 16.0f);
+                player.setOnFireFor(10);
+                player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 200, 3));
+                player.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, 100, 1));
+                
+                Vec3d knockback = player.getPos().subtract(this.getPos()).normalize();
+                player.setVelocity(knockback.x * 1.5, 0.5, knockback.z * 1.5);
+                player.velocityModified = true;
+            }
+        } catch (Exception e) {
+            System.out.println("创建光束时出错: " + e.getMessage());
         }
     }
 
@@ -1683,8 +1927,10 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             
             // 随机选择左手或右手攻击
             if (this.random.nextBoolean()) {
+                System.out.println("选择执行左手攻击，将在第21帧触发伤害");
                 setAnimation(AnimationType.LEFT_MELEE_ATTACK);
             } else {
+                System.out.println("选择执行右手攻击，将在第40帧触发伤害");
                 setAnimation(AnimationType.RIGHT_MELEE_ATTACK);
             }
         } else {
@@ -1773,43 +2019,136 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     // 添加实体状态处理方法
     @Override
     public void handleStatus(byte status) {
-        // 处理自定义状态码10 - 用于动画状态同步
-        if (status == 10) {
-            if (this.getWorld().isClient()) {
-                // 客户端接收到服务器的动画更新请求
-                byte animationId = this.dataTracker.get(ANIMATION_STATE);
-                if (animationId >= 0 && animationId < AnimationType.values().length) {
-                    AnimationType animType = AnimationType.values()[animationId];
-                    System.out.println("客户端收到服务器动画同步请求: " + animType);
-                    this.currentAnimation = animType; // 强制更新当前动画
-                    this.animationTicks = 0; // 重置动画计时器
+        try {
+            // 处理自定义状态码10 - 用于动画状态同步
+            if (status == 10) {
+                if (this.getWorld().isClient()) {
+                    try {
+                        // 获取当前播放的动画类型
+                        AnimationType previousAnimation = this.currentAnimation;
+                        
+                        // 状态码10是专门用于重置为IDLE状态的，所以我们直接强制设置为IDLE
+                        // 不再尝试从服务器或dataTracker获取状态
+                        AnimationType serverAnimType = AnimationType.IDLE;
+                        
+                        System.out.println("客户端接收到动画状态: " + serverAnimType);
+                        
+                        // 强制应用IDLE状态
+                        this.currentAnimation = serverAnimType;
+                        this.animationTicks = 0;
+                        
+                        // 如果上一个动画是右手攻击，特殊处理
+                        if (previousAnimation == AnimationType.RIGHT_MELEE_ATTACK) {
+                            System.out.println("检测到右手攻击结束，执行强制重置");
+                            
+                            // 首先停止所有动画
+                            try {
+                                // 完全停止当前动画
+                                triggerAnim("controller", "idle");
+                                
+                                // 强制更新数据追踪器
+                                this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.IDLE.ordinal());
+                                
+                                // 启动一个定时任务，50ms后再次触发IDLE动画
+                                // 这是为了确保GeckoLib有时间处理动画停止
+                                new Thread(() -> {
+                                    try {
+                                        Thread.sleep(50);
+                                        // 再次触发IDLE动画
+                                        triggerAnim("controller", "idle");
+                                        // 额外保险：再次延迟并触发
+                                        Thread.sleep(50);
+                                        forceTriggerAnimation("controller", "idle");
+                                        
+                                        // 立即重置动画状态
+                                        LivingEntity entity = (LivingEntity)this;
+                                        // 确保其他玩家也能看到更新
+                                        if (entity.getWorld() != null && !entity.getWorld().isClient()) {
+                                            // 发送状态更新
+                                            entity.getWorld().sendEntityStatus(entity, (byte)10);
+                                        }
+                                    } catch (Exception e) {
+                                        // 忽略
+                                    }
+                                }).start();
+                            } catch (Exception e) {
+                                System.out.println("强制重置动画时出错: " + e.getMessage());
+                            }
+                        } else {
+                            // 直接触发IDLE动画
+                            System.out.println("客户端触发待机动画");
+                            forceTriggerAnimation("controller", "idle");
+                        }
+                        
+                        // 记录IDLE触发时间
+                        lastIdleSetTime = System.currentTimeMillis();
+                    } catch (Exception e) {
+                        System.out.println("处理动画同步请求时出错: " + e.getMessage());
+                        e.printStackTrace();
+                    }
                 }
+                return;
             }
-            return;
-        }
-        // 处理自定义状态码20 - 用于死亡动画同步，具有最高优先级
-        else if (status == 20) {
-            if (this.getWorld().isClient()) {
-                System.out.println("客户端收到死亡动画同步请求");
-                // 强制设置死亡动画状态
-                this.isPlayingDeathAnimation = true;
-                this.currentAnimation = AnimationType.KUWEI_STORM;
-                this.animationTicks = 0;
-                // 锁定动画状态
-                this.isAnimationLocked = true;
-                this.animationLockTimer = getAnimationDuration(AnimationType.KUWEI_STORM);
-                // 触发死亡动画
-                triggerAnim("controller", "kuwei");
-                // 禁用AI
-                this.aiDisabled = true;
-                // 固定朝向
-                this.setYaw(this.getYaw());
-                this.bodyYaw = this.getYaw();
-                this.headYaw = this.getYaw();
+            // 处理自定义状态码20 - 用于死亡动画同步，具有最高优先级
+            else if (status == 20) {
+                if (this.getWorld().isClient()) {
+                    try {
+                        System.out.println("客户端收到死亡动画同步请求");
+                        // 强制设置死亡动画状态
+                        this.isPlayingDeathAnimation = true;
+                        this.currentAnimation = AnimationType.KUWEI_STORM;
+                        this.animationTicks = 0;
+                        // 锁定动画状态
+                        this.isAnimationLocked = true;
+                        this.animationLockTimer = getAnimationDuration(AnimationType.KUWEI_STORM);
+                        // 触发死亡动画
+                        forceTriggerAnimation("controller", "kuwei");
+                        // 禁用AI
+                        this.aiDisabled = true;
+                        // 固定朝向
+                        this.setYaw(this.getYaw());
+                        this.bodyYaw = this.getYaw();
+                        this.headYaw = this.getYaw();
+                    } catch (Exception e) {
+                        System.out.println("处理死亡动画同步请求时出错: " + e.getMessage());
+                    }
+                }
+                return;
             }
-            return;
+            // 处理自定义状态码21 - 用于动画进度同步
+            else if (status == 21) {
+                if (this.getWorld().isClient()) {
+                    try {
+                        // 获取服务器当前的动画帧数
+                        int serverFrame = this.dataTracker.get(DATA_ANIMATION_ID);
+                        System.out.println("客户端收到服务端动画帧同步请求: 帧数=" + serverFrame);
+                        
+                        // 仅当帧数差异较大时才同步
+                        if (Math.abs(serverFrame - this.animationTicks) > 20) {
+                            System.out.println("同步动画帧: 本地=" + this.animationTicks + ", 服务器=" + serverFrame);
+                            this.animationTicks = serverFrame;
+                        }
+                    } catch (Exception e) {
+                        System.out.println("同步动画帧数据时出错: " + e.getMessage());
+                    }
+                }
+                return;
+            }
+            
+            // 使用try-catch包裹super调用，避免类型转换异常
+            try {
+                super.handleStatus(status);
+            } catch (ClassCastException e) {
+                // 安全处理类型转换异常
+                System.out.println("处理实体状态时发生类型转换异常: " + e.getMessage());
+            } catch (Exception e) {
+                System.out.println("处理实体状态时出错: " + e.getMessage());
+            }
+        } catch (Exception e) {
+            // 捕获所有可能的异常，确保不会导致客户端崩溃
+            System.out.println("处理实体状态发生严重错误: " + e.getMessage());
+            e.printStackTrace();
         }
-        super.handleStatus(status);
     }
 
     // 添加新方法：清理世界中所有相关的太阳实体
@@ -1842,5 +2181,159 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         cleanupAllSunsInWorld(); // 添加这行
         cleanupSuns();
         super.onRemoved();
+    }
+
+    @Override
+    public void onTrackedDataSet(TrackedData<?> data) {
+        super.onTrackedDataSet(data);
+        
+        // 当动画状态被更新时，触发动画
+        if (data.equals(ANIMATION_STATE) && this.getWorld().isClient()) {
+            try {
+                byte animationId = this.dataTracker.get(ANIMATION_STATE);
+                if (animationId >= 0 && animationId < AnimationType.values().length) {
+                    AnimationType animType = AnimationType.values()[animationId];
+                    System.out.println("数据追踪器检测到动画状态变更: " + animType);
+                    
+                    // 如果动画状态和当前不一致，进行更新
+                    if (this.currentAnimation != animType) {
+                        // 保存之前的动画状态，用于防止重复触发
+                        AnimationType previousAnimation = this.currentAnimation;
+                        
+                        // 如果是从非IDLE状态切换到IDLE，并且上一次的动画刚被重置
+                        // 这可能是由于服务器发送的状态码10触发的，就不需要再次触发
+                        if (animType == AnimationType.IDLE && 
+                            previousAnimation != AnimationType.IDLE && 
+                            System.currentTimeMillis() - lastIdleSetTime < 500) {
+                            System.out.println("防止重复触发IDLE状态，跳过此次触发");
+                            return;
+                        }
+                        
+                        // 更新当前动画状态
+                        this.currentAnimation = animType;
+                        this.animationTicks = 0;
+                        
+                        // 如果上一个动画是RIGHT_MELEE_ATTACK，强制设置这个动画进度为结束
+                        // 这是为了解决右手攻击重复播放的问题
+                        if (previousAnimation == AnimationType.RIGHT_MELEE_ATTACK) {
+                            System.out.println("强制结束右手攻击动画");
+                            // 立即强制中断动画控制器，防止动画重复播放
+                            try {
+                                // 向客户端发送特殊状态码，强制重置动画
+                                if (animType == AnimationType.IDLE) {
+                                    // 记录强制重置次数
+                                    rightAttackResetCount++;
+                                    // 第二次才执行强制重置
+                                    if (rightAttackResetCount >= 2) {
+                                        triggerAnim("controller", "idle");
+                                        rightAttackResetCount = 0;
+                                    }
+                                }
+                            } catch (Exception e) {
+                                System.out.println("强制结束动画时出错: " + e.getMessage());
+                            }
+                        }
+                        
+                        // 记录IDLE触发时间
+                        if (animType == AnimationType.IDLE) {
+                            lastIdleSetTime = System.currentTimeMillis();
+                        } else {
+                            // 非IDLE状态重置右手攻击计数
+                            rightAttackResetCount = 0;
+                        }
+                        
+                        // 根据动画类型触发相应动画
+                        switch(animType) {
+                            case LEFT_MELEE_ATTACK:
+                                forceTriggerAnimation("controller", "left_attack");
+                                System.out.println("客户端触发左手攻击动画(数据变更)");
+                                break;
+                            case RIGHT_MELEE_ATTACK:
+                                forceTriggerAnimation("controller", "right_attack");
+                                System.out.println("客户端触发右手攻击动画(数据变更)");
+                                break;
+                            case RANGED_ATTACK:
+                                forceTriggerAnimation("controller", "ranged");
+                                System.out.println("客户端触发远程攻击动画(数据变更)");
+                                break;
+                            case SEED_BARRAGE:
+                                forceTriggerAnimation("controller", "seed_barrage");
+                                System.out.println("客户端触发葵花籽弹幕动画(数据变更)");
+                                break;
+                            case SUNBEAM:
+                                forceTriggerAnimation("controller", "sunbeam");
+                                System.out.println("客户端触发阳光射线动画(数据变更)");
+                                break;
+                            case PETAL_STORM:
+                                forceTriggerAnimation("controller", "petal_storm");
+                                System.out.println("客户端触发花瓣风暴动画(数据变更)");
+                                break;
+                            case KUWEI_STORM:
+                                forceTriggerAnimation("controller", "kuwei");
+                                System.out.println("客户端触发死亡动画(数据变更)");
+                                break;
+                            case IDLE:
+                            default:
+                                forceTriggerAnimation("controller", "idle");
+                                System.out.println("客户端触发待机动画(数据变更)");
+                                break;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("处理动画数据变更时出错: " + e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * 强制触发动画 - 替代triggerAnim()
+     * 不仅设置动画，还确保动画状态被正确同步
+     */
+    private void forceTriggerAnimation(String controllerName, String animName) {
+        try {
+            AnimationType animationType = getAnimation();
+            System.out.println("强制触发动画: " + animName + " (动画状态: " + animationType + ")");
+            
+            // 如果尝试触发的是idle动画，而当前不是idle状态，先强制停止其他动画
+            if ("idle".equals(animName) && animationType != AnimationType.IDLE) {
+                try {
+                    // 先停止当前动画
+                    this.triggerAnim(controllerName, "idle");
+                    // 短暂延迟确保动画系统有时间响应
+                    Thread.sleep(5);
+                } catch (Exception e) {
+                    // 忽略中断异常
+                }
+            }
+            
+            // 调用原始的triggerAnim方法
+            this.triggerAnim(controllerName, animName);
+            
+            // 如果是设置idle动画，确保完全停止其他动画
+            if ("idle".equals(animName) && this.getWorld().isClient()) {
+                // 关键：在客户端，RIGHT_MELEE_ATTACK结束后需要特殊处理
+                AnimationType prevAnim = this.currentAnimation;
+                // 设置当前动画状态为IDLE
+                this.currentAnimation = AnimationType.IDLE;
+                this.animationTicks = 0;
+                
+                // 如果之前是右手攻击，使用额外的手段确保动画停止
+                if (prevAnim == AnimationType.RIGHT_MELEE_ATTACK) {
+                    // 再次触发idle动画，增加成功几率
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(50);
+                            triggerAnim(controllerName, "idle");
+                        } catch (Exception e) {
+                            // 忽略
+                        }
+                    }).start();
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("触发动画时出错: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 } 
