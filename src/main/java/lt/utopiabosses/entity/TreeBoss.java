@@ -67,6 +67,9 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     // 添加BOSS血条
     private final ServerBossBar bossBar;
     
+    // 实体大小配置
+    private static final float SIZE_SCALE = 2.0F;
+    
     // 定义数据追踪器
     private static final TrackedData<Integer> DATA_ANIMATION_ID = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.INTEGER);
     private static final TrackedData<Boolean> DATA_ANIMATION_PLAYING = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.BOOLEAN);
@@ -114,20 +117,23 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     
     public TreeBoss(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
-        // TreeBoss.setDebugFixedSkill(TreeBoss.SkillType.ROAR);
+         TreeBoss.setDebugFixedSkill(SkillType.GRAB);
 
         this.bossBar = new ServerBossBar(
             Text.literal("树木BOSS").formatted(Formatting.GREEN),
             BossBar.Color.GREEN, 
             BossBar.Style.PROGRESS
         );
+        
+        // 设置碰撞箱大小
+        this.calculateDimensions();
     }
     
     public static DefaultAttributeContainer.Builder createAttributes() {
         return HostileEntity.createHostileAttributes()
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 500.0D)
                 .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 8.0D)
-                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.3D) // 提高移动速度
+                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.3D)
                 .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, 1.0D)
                 .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 32.0D)
                 .add(EntityAttributes.GENERIC_ARMOR, 10.0D);
@@ -462,7 +468,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private void executeLeftAttack() {
         if (!this.getWorld().isClient() && this.getTarget() != null) {
             // 攻击范围 - 增加范围并添加垂直方向的范围
-            Box attackBox = this.getBoundingBox().expand(5.0, 2.0, 5.0);
+            Box attackBox = this.getBoundingBox().expand(5.0, 2.0, 5.0); // 恢复原始攻击范围
             List<LivingEntity> targets = this.getWorld().getNonSpectatingEntities(LivingEntity.class, attackBox);
             
             // 记录是否命中了任何目标
@@ -496,7 +502,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                         target.damage(this.getDamageSources().mobAttack(this), 10.0F);
                         
                         // 击退效果
-                        Vec3d knockbackVec = new Vec3d(dirToTarget.x, 0.3, dirToTarget.z).multiply(0.7);
+                        Vec3d knockbackVec = new Vec3d(dirToTarget.x, 0.3, dirToTarget.z).multiply(0.7); // 恢复原始击退力度
                         target.addVelocity(knockbackVec.x, knockbackVec.y, knockbackVec.z);
                         
                         hitAnyTarget = true;
@@ -515,7 +521,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             );
             
             // 如果没有命中任何目标且存在目标，尝试直接攻击当前目标
-            if (!hitAnyTarget && this.getTarget() != null && this.distanceTo(this.getTarget()) <= 6.0f) {
+            if (!hitAnyTarget && this.getTarget() != null && this.distanceTo(this.getTarget()) <= 6.0f) { // 恢复原始距离检测
                 this.getTarget().damage(this.getDamageSources().mobAttack(this), 10.0F);
             }
         }
@@ -527,7 +533,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private void executeRightAttack() {
         if (!this.getWorld().isClient() && this.getTarget() != null) {
             // 攻击范围 - 增加范围并添加垂直方向的范围
-            Box attackBox = this.getBoundingBox().expand(5.0, 2.0, 5.0);
+            Box attackBox = this.getBoundingBox().expand(5.0, 2.0, 5.0); // 恢复原始攻击范围
             List<LivingEntity> targets = this.getWorld().getNonSpectatingEntities(LivingEntity.class, attackBox);
             
             // 记录是否命中了任何目标
@@ -561,7 +567,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                         target.damage(this.getDamageSources().mobAttack(this), 10.0F);
                         
                         // 击退效果
-                        Vec3d knockbackVec = new Vec3d(dirToTarget.x, 0.3, dirToTarget.z).multiply(0.7);
+                        Vec3d knockbackVec = new Vec3d(dirToTarget.x, 0.3, dirToTarget.z).multiply(0.7); // 恢复原始击退力度
                         target.addVelocity(knockbackVec.x, knockbackVec.y, knockbackVec.z);
                         
                         hitAnyTarget = true;
@@ -580,7 +586,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             );
             
             // 如果没有命中任何目标且存在目标，尝试直接攻击当前目标
-            if (!hitAnyTarget && this.getTarget() != null && this.distanceTo(this.getTarget()) <= 6.0f) {
+            if (!hitAnyTarget && this.getTarget() != null && this.distanceTo(this.getTarget()) <= 6.0f) { // 恢复原始距离检测
                 this.getTarget().damage(this.getDamageSources().mobAttack(this), 10.0F);
             }
         }
@@ -592,7 +598,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private void executeStompAttack() {
         if (!this.getWorld().isClient()) {
             // 大范围攻击区域
-            Box attackBox = this.getBoundingBox().expand(8.0, 3.0, 8.0);
+            Box attackBox = this.getBoundingBox().expand(8.0, 3.0, 8.0); // 恢复原始攻击范围
             List<LivingEntity> targets = this.getWorld().getNonSpectatingEntities(LivingEntity.class, attackBox);
             
             for (LivingEntity target : targets) {
@@ -604,11 +610,11 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     target.damage(this.getDamageSources().mobAttack(this), 16.0F);
                     
                     // 向上和外侧击飞
-                    float knockbackStrength = 1.5f - (this.distanceTo(target) / 8.0f);
+                    float knockbackStrength = 1.5f - (this.distanceTo(target) / 8.0f); // 恢复原始最大距离
                     knockbackStrength = Math.max(0.3f, knockbackStrength); // 确保最小击退
                     
                     // 击飞效果
-                    Vec3d knockbackVec = new Vec3d(dirToTarget.x, 0.8, dirToTarget.z).multiply(knockbackStrength);
+                    Vec3d knockbackVec = new Vec3d(dirToTarget.x, 0.8, dirToTarget.z).multiply(knockbackStrength); // 恢复原始击退力度
                     target.addVelocity(knockbackVec.x, knockbackVec.y, knockbackVec.z);
                     
                     // 确保客户端同步速度
@@ -648,7 +654,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private void grabPlayer() {
         if (!this.getWorld().isClient()) {
             // 获取8格内的所有玩家
-            Box searchBox = this.getBoundingBox().expand(8.0, 4.0, 8.0);
+            Box searchBox = this.getBoundingBox().expand(8.0, 4.0, 8.0); // 恢复原始搜索范围
             List<PlayerEntity> players = this.getWorld().getNonSpectatingEntities(PlayerEntity.class, searchBox);
             
             // 过滤掉创造模式的玩家
@@ -695,11 +701,37 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
      */
     private void updateGrabbedPlayerPosition() {
         if (grabbedPlayer != null && !grabbedPlayer.isRemoved() && !grabbedPlayer.isDead()) {
-            // 计算左手的相对位置
+            // 根据动画帧计算偏移
+            float animProgress = Math.min(1.0f, grabTicks / 15.0f); // 0-15帧的动画进度，最大为1.0
+            
+            // 获取基本方向向量
             Vec3d lookVec = Vec3d.fromPolar(0, this.getYaw());
-            Vec3d leftVec = lookVec.rotateY((float)Math.toRadians(-90)).multiply(2.0); // 左侧2.0格
-            Vec3d upVec = new Vec3d(0, 1.5, 0); // 向上1.5格而不是3格
-            Vec3d frontVec = lookVec.multiply(0.5); // 向前0.5格
+            
+            // 不同动画阶段的手臂位置变化
+            Vec3d leftVec;
+            Vec3d upVec;
+            Vec3d frontVec;
+            
+            if (grabTicks < 10) { // 抓取初期(0-0.5秒)：手臂向前伸出
+                // 手臂从体侧向前方伸出
+                float phase1Progress = grabTicks / 10.0f;
+                // 修正为真正的左手方向 (正确使用+90度旋转)
+                leftVec = lookVec.rotateY((float)Math.toRadians(90 - phase1Progress * 30)).multiply(3.5 - phase1Progress * 1.0);
+                upVec = new Vec3d(0, 3.0 - phase1Progress * 0.5, 0);
+                frontVec = lookVec.multiply(0.5 + phase1Progress * 2.0);
+            } else if (grabTicks < 15) { // 抓取中期(0.5-0.75秒)：手臂收回
+                // 手臂抓住玩家后往回收
+                float phase2Progress = (grabTicks - 10) / 5.0f;
+                // 修正为真正的左手方向 (正确使用+60度旋转)
+                leftVec = lookVec.rotateY((float)Math.toRadians(60 + phase2Progress * 10)).multiply(2.5 - phase2Progress * 0.5);
+                upVec = new Vec3d(0, 2.5 + phase2Progress * 1.0, 0);
+                frontVec = lookVec.multiply(2.5 - phase2Progress * 1.0);
+            } else { // 抓取后期(0.75秒后)：手臂稳定抓住
+                // 修正为真正的左手方向 (正确使用+70度旋转)
+                leftVec = lookVec.rotateY((float)Math.toRadians(70)).multiply(2.0);
+                upVec = new Vec3d(0, 3.5, 0);
+                frontVec = lookVec.multiply(1.5);
+            }
             
             // 计算左手的绝对位置
             Vec3d handPos = this.getPos().add(leftVec).add(upVec).add(frontVec);
@@ -708,6 +740,17 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             grabbedPlayer.teleport(handPos.x, handPos.y, handPos.z);
             grabbedPlayer.setVelocity(0, 0, 0);
             grabbedPlayer.fallDistance = 0;
+            
+            // 设置玩家视角朝向BOSS
+            if (grabTicks > 5) {
+                // 计算从玩家到BOSS的方向
+                float yaw = (float)Math.toDegrees(Math.atan2(
+                    this.getZ() - grabbedPlayer.getZ(),
+                    this.getX() - grabbedPlayer.getX()
+                ));
+                grabbedPlayer.setYaw(yaw);
+                grabbedPlayer.setHeadYaw(yaw);
+            }
             
             // 如果是服务器玩家，同步速度
             if (grabbedPlayer instanceof ServerPlayerEntity) {
@@ -1335,7 +1378,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
      */
     private void applySlowEffectToNearbyPlayers() {
         // 获取8格内的所有玩家
-        Box searchBox = this.getBoundingBox().expand(8.0, 3.0, 8.0);
+        Box searchBox = this.getBoundingBox().expand(8.0, 3.0, 8.0); // 恢复原始搜索范围
         List<PlayerEntity> nearbyPlayers = this.getWorld().getNonSpectatingEntities(PlayerEntity.class, searchBox);
         
         // 过滤掉创造模式的玩家
@@ -1416,7 +1459,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 double angle = Math.toRadians(i * 30); // 每30度一根藤曼
                 
                 // 藤曼向外延伸8格
-                for (int distance = 1; distance <= 8; distance++) {
+                for (int distance = 1; distance <= 8; distance++) { // 恢复原始藤曼延伸距离
                     // 计算藤曼上的位置
                     double x = this.getX() + Math.cos(angle) * distance;
                     double z = this.getZ() + Math.sin(angle) * distance;
@@ -1531,5 +1574,23 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 0.8F
             );
         }
+    }
+
+    // 返回实体碰撞箱的尺寸
+    @Override
+    public net.minecraft.entity.EntityDimensions getDimensions(net.minecraft.entity.EntityPose pose) {
+        return super.getDimensions(pose).scaled(SIZE_SCALE);
+    }
+    
+    // 设置眼睛高度
+    @Override
+    protected float getActiveEyeHeight(net.minecraft.entity.EntityPose pose, net.minecraft.entity.EntityDimensions dimensions) {
+        return dimensions.height * 0.85F; // 将眼睛高度设置为整体高度的85%
+    }
+
+    // 获取渲染比例
+    @Override
+    public float getScaleFactor() {
+        return SIZE_SCALE;
     }
 }
