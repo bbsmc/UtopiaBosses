@@ -117,7 +117,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     
     public TreeBoss(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
-         TreeBoss.setDebugFixedSkill(SkillType.GRAB);
+         TreeBoss.setDebugFixedSkill(SkillType.ROAR);
 
         this.bossBar = new ServerBossBar(
             Text.literal("树木BOSS").formatted(Formatting.GREEN),
