@@ -244,7 +244,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         return HostileEntity.createHostileAttributes()
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 500.0D)
                 .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 8.0D)
-                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.28D) // 增加基础移动速度
+                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.28D) // 比正常生物(0.25)略快
                 .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, 1.0D)
                 .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 40.0D) // 保持较大的追踪范围
                 .add(EntityAttributes.GENERIC_ARMOR, 10.0D);
@@ -256,11 +256,11 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         this.goalSelector.add(0, new SwimGoal(this));
         
         // 攻击AI - 使用优化的攻击AI
-        this.goalSelector.add(1, new MeleeAttackGoal(this, 1.2D, true) {
+        this.goalSelector.add(1, new MeleeAttackGoal(this, 1.1D, true) {
             private int updateCountdownTicks;
             private int ticksUntilNextPathRecalculation;
             private float lastUpdateChance;
-            private final double moveSpeed = 1.2D; // 提高攻击移动速度
+            private final double moveSpeed = 1.1D; // 攻击时略微提高移动速度
             private int attackTick = 0; // 攻击计时器
             
             @Override
@@ -335,8 +335,8 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             }
         });
         
-        // 移动AI - 自定义漫游AI
-        this.goalSelector.add(2, new WanderAroundFarGoal(this, 0.7D, 0.0075F) {
+        // 移动AI - 自定义漫游AI，基于凋零的实现
+        this.goalSelector.add(2, new WanderAroundFarGoal(this, 0.65D, 0.0025F) { // 提高漫游速度
             @Override
             public boolean canStart() {
                 if (TreeBoss.this.attackCooldown > 0 || TreeBoss.this.getTarget() != null) {
