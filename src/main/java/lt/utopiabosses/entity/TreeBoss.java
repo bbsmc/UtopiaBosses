@@ -1,6 +1,7 @@
 package lt.utopiabosses.entity;
 
 import lt.utopiabosses.registry.EntityRegistry;
+import lt.utopiabosses.registry.SoundRegistry;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -115,9 +116,12 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         ROAR    // 朝天怒吼技能
     }
     
+    // 移动音效相关变量
+    private int moveSoundCooldown = 0;
+    
     public TreeBoss(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
-         TreeBoss.setDebugFixedSkill(SkillType.ROAR);
+//         TreeBoss.setDebugFixedSkill(SkillType.ROAR);
 
         this.bossBar = new ServerBossBar(
             Text.literal("树木BOSS").formatted(Formatting.GREEN),
@@ -187,6 +191,25 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                                     this.dataTracker.get(IS_STOMPING) ||
                                     this.dataTracker.get(IS_ROARING) ||
                                     this.dataTracker.get(ATTACK_TYPE) != AttackType.NONE.ordinal();
+        
+        // 添加移动音效逻辑
+        if (!this.getWorld().isClient() && !isPlayingAnimation && this.isMoving() && moveSoundCooldown <= 0) {
+            // 播放移动音效
+            this.getWorld().playSound(
+                null, 
+                this.getX(), this.getY(), this.getZ(),
+                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
+                SoundCategory.HOSTILE, 
+                1.0F, 
+                1.0F
+            );
+            moveSoundCooldown = 20; // 每秒播放一次
+        }
+        
+        // 减少移动音效冷却
+        if (moveSoundCooldown > 0) {
+            moveSoundCooldown--;
+        }
         
         // 如果正在播放死亡动画
         if (this.dataTracker.get(IS_DYING)) {
@@ -510,11 +533,11 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 }
             }
             
-            // 播放攻击音效
+            // 播放攻击音效，使用SoundRegistry中定义的左手攻击音效
             this.getWorld().playSound(
                 null, 
                 this.getX(), this.getY(), this.getZ(),
-                SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP,
+                SoundRegistry.ENTITY_TREEBOSS_LEFT_ASTTACK,
                 SoundCategory.HOSTILE, 
                 1.0F, 
                 0.8F
@@ -575,11 +598,11 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 }
             }
             
-            // 播放攻击音效
+            // 播放攻击音效，使用SoundRegistry中定义的右手攻击音效
             this.getWorld().playSound(
                 null, 
                 this.getX(), this.getY(), this.getZ(),
-                SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP,
+                SoundRegistry.ENTITY_TREEBOSS_RIGHT_ASTTACK,
                 SoundCategory.HOSTILE, 
                 1.0F, 
                 1.2F
@@ -1592,5 +1615,16 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     @Override
     public float getScaleFactor() {
         return SIZE_SCALE;
+    }
+
+    /**
+     * 判断实体是否在移动
+     * @return 如果实体正在移动则返回true
+     */
+    private boolean isMoving() {
+        // 检查实体的移动速度是否大于阈值
+        double dx = this.getVelocity().x;
+        double dz = this.getVelocity().z;
+        return Math.sqrt(dx * dx + dz * dz) > 0.02;
     }
 }

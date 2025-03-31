@@ -34,5 +34,29 @@
     "sounds": [
       "utopiabosses:entity/sunflower/sun_xishou"
     ]
+    },
+  "entity.treeboss.l_1": {
+    "subtitle": "subtitles.entity.treeboss.l_1",
+    "sounds": [
+      "utopiabosses:entity/treeboss/l_1"
+    ]
+    },
+  "entity.treeboss.r_1": {
+    "subtitle": "subtitles.entity.treeboss.r_1",
+    "sounds": [
+      "utopiabosses:entity/treeboss/r_1"
+    ]
+    },
+  "entity.treeboss.tree_attack": {
+    "subtitle": "subtitles.entity.treeboss.tree_attack",
+    "sounds": [
+      "utopiabosses:entity/treeboss/tree_attack"
+    ]
+    },
+  "entity.treeboss.tree_run": {
+    "subtitle": "subtitles.entity.treeboss.tree_run",
+    "sounds": [
+      "utopiabosses:entity/treeboss/tree_run"
+    ]
   }
 } 

@@ -38,6 +38,22 @@ public class SoundRegistry {
     public static final SoundEvent ENTITY_SUNFLOWER_SUN_HEAL = SoundEvent.of(ENTITY_SUNFLOWER_SUN_HEAL_ID);
 
 
+    // 树BOSS
+
+    public static final Identifier ENTITY_TREEBOSS_LEFT_ASTTACK_ID = new Identifier(Utopiabosses.MOD_ID, "entity.treeboss.l_1");
+    public static final SoundEvent ENTITY_TREEBOSS_LEFT_ASTTACK = SoundEvent.of(ENTITY_TREEBOSS_LEFT_ASTTACK_ID);
+
+    public static final Identifier ENTITY_TREEBOSS_RIGHT_ASTTACK_ID = new Identifier(Utopiabosses.MOD_ID, "entity.treeboss.r_1");
+    public static final SoundEvent ENTITY_TREEBOSS_RIGHT_ASTTACK = SoundEvent.of(ENTITY_TREEBOSS_RIGHT_ASTTACK_ID);
+
+    // tree_attack.ogg
+    public static final Identifier ENTITY_TREEBOSS_TREE_ATTACK_ID = new Identifier(Utopiabosses.MOD_ID, "entity.treeboss.tree_attack");
+    public static final SoundEvent ENTITY_TREEBOSS_TREE_ATTACK = SoundEvent.of(ENTITY_TREEBOSS_TREE_ATTACK_ID);
+
+    // tree_run.ogg
+    public static final Identifier ENTITY_TREEBOSS_TREE_RUN_ID = new Identifier(Utopiabosses.MOD_ID, "entity.treeboss.tree_run");
+    public static final SoundEvent ENTITY_TREEBOSS_TREE_RUN = SoundEvent.of(ENTITY_TREEBOSS_TREE_RUN_ID);
+
 
 
 
@@ -58,6 +74,12 @@ public class SoundRegistry {
         Registry.register(Registries.SOUND_EVENT, ENTITY_SUNFLOWER_DANMU_ID, ENTITY_SUNFLOWER_DANMU);
         Registry.register(Registries.SOUND_EVENT, ENTITY_SUNFLOWER_SUN_SPAWN_ID, ENTITY_SUNFLOWER_SUN_SPAWN);
         Registry.register(Registries.SOUND_EVENT, ENTITY_SUNFLOWER_SUN_HEAL_ID, ENTITY_SUNFLOWER_SUN_HEAL);
+
+        // 树BOSS音效
+        Registry.register(Registries.SOUND_EVENT, ENTITY_TREEBOSS_LEFT_ASTTACK_ID, ENTITY_TREEBOSS_LEFT_ASTTACK);
+        Registry.register(Registries.SOUND_EVENT, ENTITY_TREEBOSS_RIGHT_ASTTACK_ID, ENTITY_TREEBOSS_RIGHT_ASTTACK);
+        Registry.register(Registries.SOUND_EVENT, ENTITY_TREEBOSS_TREE_ATTACK_ID, ENTITY_TREEBOSS_TREE_ATTACK);
+        Registry.register(Registries.SOUND_EVENT, ENTITY_TREEBOSS_TREE_RUN_ID, ENTITY_TREEBOSS_TREE_RUN);
         
         Utopiabosses.LOGGER.info("音效注册完成！");
     }

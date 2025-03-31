@@ -34,6 +34,11 @@
   "subtitles.entity.utopiabosses.sunflower_boss.death": "Sunflower Boss: Death",
   "subtitles.entity.utopiabosses.sunflower_boss.attack": "Sunflower Boss: Attack",
   "subtitles.block.utopiabosses.nature_altar.activate": "Nature Altar: Activate",
-  "subtitles.item.gatling.fire": "Gatling: Fire"
+  "subtitles.item.gatling.fire": "Gatling: Fire",
+
+  "subtitles.entity.treeboss.l_1": "Tree Boss: Left Attack",
+  "subtitles.entity.treeboss.r_1": "Tree Boss: Right Attack",
+  "subtitles.entity.treeboss.tree_attack": "Tree Boss: Tree Attack",
+  "subtitles.entity.treeboss.tree_run": "Tree Boss: Tree Run"
 
 } 

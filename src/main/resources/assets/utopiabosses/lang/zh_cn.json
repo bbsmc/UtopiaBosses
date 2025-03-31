@@ -34,5 +34,11 @@
   "subtitles.entity.utopiabosses.sunflower.yuan": "向日葵：远程",
   "subtitles.entity.utopiabosses.sunflower.dan_mu": "向日葵：弹幕",
   "subtitles.entity.utopiabosses.sunflower.sun_chuxian": "向日葵：激光-太阳生成",
-  "subtitles.entity.utopiabosses.sunflower.sun_xishou": "向日葵：激光-太阳回血"
+  "subtitles.entity.utopiabosses.sunflower.sun_xishou": "向日葵：激光-太阳回血",
+
+  
+  "subtitles.entity.utopiabosses.treeboss.l_1": "树BOSS：左攻击",
+  "subtitles.entity.utopiabosses.treeboss.r_1": "树BOSS：右攻击",
+  "subtitles.entity.utopiabosses.treeboss.tree_attack": "树BOSS：树攻击",
+  "subtitles.entity.utopiabosses.treeboss.tree_run": "树BOSS：树跑"
 }
