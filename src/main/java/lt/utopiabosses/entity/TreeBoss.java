@@ -41,10 +41,13 @@ import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.keyframe.event.CustomInstructionKeyframeEvent;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
-
+import net.minecraft.entity.EntityDimensions;
+import net.minecraft.entity.EntityPose;
 import java.util.List;
 import java.util.Random;
 import java.util.ArrayList;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.WorldView;
 
 public class TreeBoss extends HostileEntity implements GeoEntity {
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
@@ -69,7 +72,8 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private final ServerBossBar bossBar;
     
     // 实体大小配置
-    private static final float SIZE_SCALE = 2.0F;
+    private static final float SIZE_SCALE = 2.0F; // 视觉模型比例保持不变
+    private static final float COLLISION_SCALE = 0.8F; // 碰撞箱比例缩小
     
     // 定义数据追踪器
     private static final TrackedData<Integer> DATA_ANIMATION_ID = DataTracker.registerData(TreeBoss.class, TrackedDataHandlerRegistry.INTEGER);
@@ -93,6 +97,8 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private int attackCounter = 0; // 攻击计数器，每4次普通攻击触发一次跺脚
     private PlayerEntity grabbedPlayer = null; // 被抓取的玩家
     private boolean hasThrown = false; // 是否已经投掷玩家
+    private boolean hasPlayedAttackSound = false; // 是否已播放初始攻击音效
+    private boolean hasPlayedHandSound = false; // 是否已播放左右手音效
     
     // 藤曼相关属性
     private List<PlayerEntity> snaredPlayers = new ArrayList<>(); // 被禁锢的玩家
@@ -118,6 +124,10 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     
     // 移动音效相关变量
     private int moveSoundCooldown = 0;
+    private int walkAnimTicks = 0;
+    private boolean isWalking = false;
+    private boolean playedFirstStepSound = false;
+    private boolean playedSecondStepSound = false;
     
     public TreeBoss(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
@@ -131,36 +141,251 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         
         // 设置碰撞箱大小
         this.calculateDimensions();
+        
+        // 设置自定义导航器
+        if (!world.isClient) {
+            this.navigation = createNavigation(world);
+        }
+    }
+    
+    @Override
+    protected net.minecraft.entity.ai.pathing.EntityNavigation createNavigation(World world) {
+        return new TreeBossNavigation(this, world);
+    }
+    
+    // 自定义导航类 - 优化大型实体寻路
+    protected static class TreeBossNavigation extends net.minecraft.entity.ai.pathing.MobNavigation {
+        private int pathUpdateTimer = 0;
+        
+        public TreeBossNavigation(TreeBoss entity, World world) {
+            super(entity, world);
+            
+            // 设置更宽的路径宽度，适合大型实体
+            this.setCanPathThroughDoors(true);
+            this.setCanSwim(true);
+            this.setCanEnterOpenDoors(true);
+            this.setRangeMultiplier(1.3f); // 增加寻路范围
+        }
+        
+        // 重写方法，使用更宽的路径宽度
+        @Override
+        protected net.minecraft.entity.ai.pathing.PathNodeNavigator createPathNodeNavigator(int range) {
+            this.nodeMaker = new net.minecraft.entity.ai.pathing.LandPathNodeMaker();
+            this.nodeMaker.setCanEnterOpenDoors(true);
+            this.nodeMaker.setCanOpenDoors(true);
+            this.nodeMaker.setCanSwim(true);
+            return new net.minecraft.entity.ai.pathing.PathNodeNavigator(this.nodeMaker, range);
+        }
+        
+        @Override
+        public void tick() {
+            pathUpdateTimer--;
+            
+            // 只有在定时器为0时才进行导航更新，高速移动时更频繁更新
+            if (pathUpdateTimer <= 0) {
+                super.tick();
+                
+                // 如果实体正在移动较快，更频繁更新路径
+                double speed = this.entity.getVelocity().horizontalLength();
+                if (speed > 0.15) {
+                    pathUpdateTimer = 2; // 高速移动时每2ticks更新一次
+                } else {
+                    pathUpdateTimer = 3; // 正常情况下每3ticks更新一次
+                }
+            }
+        }
+        
+        @Override
+        protected void adjustPath() {
+            super.adjustPath();
+            // 增加路径宽度以适应大型实体
+            // 修复BlockPos构造方法
+            if (this.entity.getWorld().getBlockState(
+                    new net.minecraft.util.math.BlockPos(
+                        (int)this.entity.getX(), 
+                        (int)(this.entity.getY() + 0.5), 
+                        (int)this.entity.getZ()
+                    )
+                ).isIn(net.minecraft.registry.tag.BlockTags.LEAVES)
+            ) {
+                // 如果实体在树叶中，则临时增加航点容差
+                // 这有助于大型实体穿过树叶
+                this.nodeReachProximity = 1.5F;
+                return;
+            }
+            
+            // 默认值更宽松，避免卡顿
+            this.nodeReachProximity = 0.75F;
+        }
+        
+        @Override
+        protected boolean canPathDirectlyThrough(Vec3d start, Vec3d end) {
+            // 简化大型实体的直线路径检查
+            // 这使得实体在较近距离上更倾向于直接移动而不是绕路
+            double dx = end.x - start.x;
+            double dz = end.z - start.z;
+            double distSq = dx * dx + dz * dz;
+            
+            // 如果距离很近，直接允许直线移动
+            if (distSq < 4.0) {
+                return true;
+            }
+            
+            return super.canPathDirectlyThrough(start, end);
+        }
+        
+        @Override
+        public boolean isIdle() {
+            return super.isIdle() || ((TreeBoss)this.entity).dataTracker.get(TreeBoss.ATTACK_TYPE) != TreeBoss.AttackType.NONE.ordinal();
+        }
     }
     
     public static DefaultAttributeContainer.Builder createAttributes() {
         return HostileEntity.createHostileAttributes()
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 500.0D)
                 .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 8.0D)
-                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.3D)
+                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.28D) // 增加基础移动速度
                 .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, 1.0D)
-                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 32.0D)
+                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 40.0D) // 保持较大的追踪范围
                 .add(EntityAttributes.GENERIC_ARMOR, 10.0D);
     }
     
     @Override
     protected void initGoals() {
         // 基础生存AI
-        this.goalSelector.add(0, new SwimGoal(this)); // 游泳能力
+        this.goalSelector.add(0, new SwimGoal(this));
         
-        // 攻击AI
-        this.goalSelector.add(1, new MeleeAttackGoal(this, 1.0D, true)); // 近战攻击
+        // 攻击AI - 使用优化的攻击AI
+        this.goalSelector.add(1, new MeleeAttackGoal(this, 1.2D, true) {
+            private int updateCountdownTicks;
+            private int ticksUntilNextPathRecalculation;
+            private float lastUpdateChance;
+            private final double moveSpeed = 1.2D; // 提高攻击移动速度
+            private int attackTick = 0; // 攻击计时器
+            
+            @Override
+            public void start() {
+                super.start();
+                this.ticksUntilNextPathRecalculation = 0;
+                this.attackTick = 0;
+                System.out.println("TreeBoss攻击AI启动");
+            }
+            
+            @Override
+            public void tick() {
+                LivingEntity target = TreeBoss.this.getTarget();
+                if (target == null) {
+                    System.out.println("TreeBoss没有目标，中止攻击");
+                    return;
+                }
+                
+                this.mob.getLookControl().lookAt(target, 30.0F, 30.0F);
+                
+                // 降低路径更新频率
+                this.updateCountdownTicks = Math.max(this.updateCountdownTicks - 1, 0);
+                
+                double distanceSquared = this.mob.squaredDistanceTo(target.getX(), target.getY(), target.getZ());
+                this.ticksUntilNextPathRecalculation = Math.max(this.ticksUntilNextPathRecalculation - 1, 0);
+                
+                // 使用更智能的路径更新逻辑
+                if (this.ticksUntilNextPathRecalculation <= 0 && 
+                    (this.updateCountdownTicks <= 0 || 
+                     this.mob.getRandom().nextFloat() < this.lastUpdateChance)) {
+                     
+                    this.ticksUntilNextPathRecalculation = 4 + this.mob.getRandom().nextInt(7);
+                    
+                    // 距离越远，更新概率越低
+                    if (distanceSquared > 1024.0D) {
+                        this.ticksUntilNextPathRecalculation += 10;
+                    } else if (distanceSquared > 256.0D) {
+                        this.ticksUntilNextPathRecalculation += 5;
+                    }
+                    
+                    // 更新路径，但不一定成功
+                    if (!this.mob.getNavigation().startMovingTo(target, this.moveSpeed)) { // 使用本地变量替代speed
+                        this.ticksUntilNextPathRecalculation += 15;
+                    }
+                    
+                    // 设置下次更新的随机概率
+                    this.lastUpdateChance = target.squaredDistanceTo(this.mob) > 256 ? 0.2f : 0.6f;
+                    this.updateCountdownTicks = 20 + TreeBoss.this.random.nextInt(20);
+                }
+                
+                // 攻击逻辑
+                attackTick = Math.max(attackTick - 1, 0);
+                
+                if (distanceSquared <= this.getSquaredMaxAttackDistance(target)) {
+                    // 如果在攻击范围内且攻击冷却结束
+                    if (attackTick <= 0) {
+                        // 在服务器端执行攻击尝试
+                        if (!TreeBoss.this.getWorld().isClient()) {
+                            attackTick = 20; // 20tick (1秒) 攻击冷却
+                            this.mob.swingHand(net.minecraft.util.Hand.MAIN_HAND);
+                            boolean success = TreeBoss.this.tryAttack(target);
+                            System.out.println("TreeBoss尝试攻击目标: " + (success ? "成功" : "失败") + ", 攻击冷却：" + TreeBoss.this.attackCooldown);
+                        }
+                    }
+                }
+            }
+            
+            @Override
+            protected double getSquaredMaxAttackDistance(LivingEntity entity) {
+                // 攻击范围匹配视觉模型
+                return 9.0D + entity.getWidth();
+            }
+        });
         
-        // 移动AI
-        this.goalSelector.add(2, new WanderAroundFarGoal(this, 0.8D)); // 漫游移动
+        // 移动AI - 自定义漫游AI
+        this.goalSelector.add(2, new WanderAroundFarGoal(this, 0.7D, 0.0075F) {
+            @Override
+            public boolean canStart() {
+                if (TreeBoss.this.attackCooldown > 0 || TreeBoss.this.getTarget() != null) {
+                    return false;
+                }
+                return super.canStart();
+            }
+        });
         
-        // 基本观察AI
-        this.goalSelector.add(3, new LookAtEntityGoal(this, PlayerEntity.class, 20.0F));
+        // 观察AI - 低频率
+        this.goalSelector.add(3, new LookAtEntityGoal(this, PlayerEntity.class, 16.0F, 0.05F));
+        // 修复LookAroundGoal构造方法
         this.goalSelector.add(4, new LookAroundGoal(this));
         
         // 目标选择AI
-        this.targetSelector.add(1, new RevengeGoal(this)); // 受到伤害时反击
-        this.targetSelector.add(2, new ActiveTargetGoal<>(this, PlayerEntity.class, true));
+        this.targetSelector.add(1, new RevengeGoal(this) {
+            @Override
+            public boolean shouldContinue() {
+                // 只持续追踪20秒以内设定的复仇目标
+                if (this.mob.getLastAttackTime() > 0 && 
+                    (this.mob.getWorld().getTime() - this.mob.getLastAttackTime()) > 400) {
+                    return false;
+                }
+                return super.shouldContinue();
+            }
+        });
+        this.targetSelector.add(2, new ActiveTargetGoal<>(this, PlayerEntity.class, true) {
+            @Override
+            protected void findClosestTarget() {
+                // 优先选择最近的非创造模式玩家
+                this.targetEntity = this.mob.getWorld().getClosestEntity(
+                    this.mob.getWorld().getEntitiesByClass(
+                        this.targetClass, 
+                        this.getSearchBox(this.getFollowRange()), 
+                        (entity) -> entity != null && !((PlayerEntity)entity).isCreative() && !((PlayerEntity)entity).isSpectator() && this.targetPredicate.test(this.mob, entity)
+                    ),
+                    this.targetPredicate,
+                    this.mob,
+                    this.mob.getX(),
+                    this.mob.getEyeY(),
+                    this.mob.getZ()
+                );
+                
+                // 添加调试日志
+                if (this.targetEntity != null && TreeBoss.this.getWorld().getTime() % 20 == 0) {
+                    System.out.println("TreeBoss选中目标: " + this.targetEntity.getName().getString() + ", 距离: " + TreeBoss.this.distanceTo(this.targetEntity));
+                }
+            }
+        });
     }
     
     @Override
@@ -192,18 +417,124 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                                     this.dataTracker.get(IS_ROARING) ||
                                     this.dataTracker.get(ATTACK_TYPE) != AttackType.NONE.ordinal();
         
-        // 添加移动音效逻辑
-        if (!this.getWorld().isClient() && !isPlayingAnimation && this.isMoving() && moveSoundCooldown <= 0) {
-            // 播放移动音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
-                SoundCategory.HOSTILE, 
-                1.0F, 
-                1.0F
-            );
-            moveSoundCooldown = 20; // 每秒播放一次
+        // 如果正在播放动画，防止过度转动
+        if (isPlayingAnimation) {
+            // 固定视角方向
+            this.setYaw(savedYaw);
+            this.setPitch(savedPitch);
+            this.bodyYaw = savedBodyYaw;
+            this.headYaw = savedHeadYaw;
+        }
+        
+        // 处理攻击音效
+        if (!this.getWorld().isClient() && this.dataTracker.get(ATTACK_TYPE) != AttackType.NONE.ordinal()) {
+            // 在动画开始时播放初始攻击音效
+            if (!hasPlayedAttackSound && animationTicks == 1) {
+                this.getWorld().playSound(
+                    null, 
+                    this.getX(), this.getY(), this.getZ(),
+                    SoundRegistry.ENTITY_TREEBOSS_TREE_ATTACK,
+                    SoundCategory.HOSTILE, 
+                    1.0F, 
+                    1.0F
+                );
+                hasPlayedAttackSound = true;
+            }
+            
+            // 在0.75秒(15帧)时播放左右手音效
+            if (!hasPlayedHandSound && animationTicks == 15) {
+                if (this.dataTracker.get(ATTACK_TYPE) == AttackType.LEFT.ordinal()) {
+                    this.getWorld().playSound(
+                        null, 
+                        this.getX(), this.getY(), this.getZ(),
+                        SoundRegistry.ENTITY_TREEBOSS_LEFT_ASTTACK,
+                        SoundCategory.HOSTILE, 
+                        1.0F, 
+                        0.8F
+                    );
+                } else if (this.dataTracker.get(ATTACK_TYPE) == AttackType.RIGHT.ordinal()) {
+                    this.getWorld().playSound(
+                        null, 
+                        this.getX(), this.getY(), this.getZ(),
+                        SoundRegistry.ENTITY_TREEBOSS_RIGHT_ASTTACK,
+                        SoundCategory.HOSTILE, 
+                        1.0F, 
+                        1.2F
+                    );
+                }
+                hasPlayedHandSound = true;
+            }
+        } else {
+            // 重置音效播放状态
+            hasPlayedAttackSound = false;
+            hasPlayedHandSound = false;
+        }
+        
+        // 处理移动动画音效
+        if (!this.getWorld().isClient() && !isPlayingAnimation) {
+            // 检测是否正在移动 - 使用isMoving()方法保持一致性
+            boolean movingNow = this.isMoving();
+            
+            // 首次开始移动或再次开始移动
+            if (movingNow && !isWalking) {
+                isWalking = true;
+                walkAnimTicks = 0;
+                playedFirstStepSound = false;
+                playedSecondStepSound = false;
+            } else if (!movingNow && isWalking) {
+                // 停止移动
+                isWalking = false;
+                walkAnimTicks = 0;
+            }
+            
+            // 如果正在行走，增加计时并播放音效
+            if (isWalking) {
+                walkAnimTicks++;
+                
+                // 计算当前移动速度
+                double speed = Math.sqrt(
+                    this.getVelocity().x * this.getVelocity().x + 
+                    this.getVelocity().z * this.getVelocity().z
+                );
+                
+                // 固定在第2.5帧和第15帧播放音效
+                int firstSoundTick = 3; // 约等于第2.5帧
+                int secondSoundTick = 15;
+                int cycleTicks = 20; // 保持完整循环为20帧
+                
+                // 在第2.5帧播放第一次脚步声
+                if (!playedFirstStepSound && walkAnimTicks == firstSoundTick) {
+                    this.getWorld().playSound(
+                        null, 
+                        this.getX(), this.getY(), this.getZ(),
+                        SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
+                        SoundCategory.HOSTILE, 
+                        0.8F, 
+                        1.2F
+                    );
+                    playedFirstStepSound = true;
+                }
+                
+                // 在第15帧播放第二次脚步声
+                if (!playedSecondStepSound && walkAnimTicks == secondSoundTick) {
+                    this.getWorld().playSound(
+                        null, 
+                        this.getX(), this.getY(), this.getZ(),
+                        SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
+                        SoundCategory.HOSTILE, 
+                        0.8F, 
+                        0.9F
+                    );
+                    playedSecondStepSound = true;
+                }
+                
+                // 走路动画一个完整循环后重置
+                if (walkAnimTicks >= cycleTicks) {
+                    walkAnimTicks = 0;
+                    playedFirstStepSound = false;
+                    playedSecondStepSound = false;
+                }
+            }
         }
         
         // 减少移动音效冷却
@@ -442,6 +773,16 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         
         super.tick();
         
+        // 每10ticks强制刷新一次动画状态
+        if (this.getWorld().isClient() && this.getWorld().getTime() % 10 == 0) {
+            forceAnimationRefresh();
+            
+            // 如果开启了调试，每60ticks渲染一次伤害盒子
+            if (DEBUG_FIXED_SKILL != null && this.getWorld().getTime() % 60 == 0) {
+                renderHitboxes();
+            }
+        }
+        
         if (!this.getWorld().isClient()) {
             // 更新血条
             this.bossBar.setPercent(this.getHealth() / this.getMaxHealth());
@@ -472,6 +813,10 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     // 重置攻击状态
                     this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
                     animationTicks = 0;
+                    // 确保cooldown设置
+                    if (attackCooldown <= 0) {
+                        attackCooldown = 20; // 确保攻击后有一个短暂的冷却
+                    }
                 }
                 
                 // 固定视角方向
@@ -481,6 +826,37 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 this.headYaw = savedHeadYaw;
             } else {
                 animationTicks = 0;
+            }
+            
+            // 添加调试日志
+            if (this.getWorld().getTime() % 20 == 0) {
+                System.out.println("TreeBoss状态: 攻击类型=" + attackTypeByte + ", 冷却=" + attackCooldown + ", 是否正在攻击=" + this.isAttacking);
+            }
+        }
+    }
+    
+    /**
+     * 强制刷新动画状态，确保动画控制器能够正确响应状态变化
+     */
+    private void forceAnimationRefresh() {
+        if (this.getWorld().isClient()) {
+            // 获取当前动画状态
+            boolean isCurrentlyMoving = this.isMoving();
+            boolean isAnyAnimationPlaying = this.dataTracker.get(IS_DYING) || 
+                                         this.dataTracker.get(IS_SUMMONING_VINES) ||
+                                         this.dataTracker.get(IS_GRABBING) ||
+                                         this.dataTracker.get(IS_STOMPING) ||
+                                         this.dataTracker.get(IS_ROARING) ||
+                                         this.dataTracker.get(ATTACK_TYPE) != AttackType.NONE.ordinal();
+            
+            if (isCurrentlyMoving && !isAnyAnimationPlaying) {
+                // 如果正在移动且没有播放其他动画，确保行走动画被激活
+                // 这行不会实际改变动画，但会触发动画控制器重新评估状态
+                this.addVelocity(0, 0, 0);
+                
+                if (this.getWorld().getTime() % 40 == 0) { // 每2秒输出一次日志
+                    System.out.println("TreeBoss正在强制刷新移动动画状态");
+                }
             }
         }
     }
@@ -532,16 +908,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     }
                 }
             }
-            
-            // 播放攻击音效，使用SoundRegistry中定义的左手攻击音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundRegistry.ENTITY_TREEBOSS_LEFT_ASTTACK,
-                SoundCategory.HOSTILE, 
-                1.0F, 
-                0.8F
-            );
             
             // 如果没有命中任何目标且存在目标，尝试直接攻击当前目标
             if (!hitAnyTarget && this.getTarget() != null && this.distanceTo(this.getTarget()) <= 6.0f) { // 恢复原始距离检测
@@ -597,16 +963,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     }
                 }
             }
-            
-            // 播放攻击音效，使用SoundRegistry中定义的右手攻击音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundRegistry.ENTITY_TREEBOSS_RIGHT_ASTTACK,
-                SoundCategory.HOSTILE, 
-                1.0F, 
-                1.2F
-            );
             
             // 如果没有命中任何目标且存在目标，尝试直接攻击当前目标
             if (!hitAnyTarget && this.getTarget() != null && this.distanceTo(this.getTarget()) <= 6.0f) { // 恢复原始距离检测
@@ -1045,27 +1401,62 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllerRegistrar) {
-        // 添加自定义指令关键帧监听器
-        AnimationController<TreeBoss> controller = new AnimationController<>(this, "controller", 0, this::predicate);
-        
-        // 使用匿名内部类处理关键帧事件
-        controller.setCustomInstructionKeyframeHandler(event -> {
-            // 获取关键帧指令并处理
-            String instruction = event.getClass().getSimpleName(); // 临时方案：使用事件的类名
-            // 尝试从事件中提取信息
-            try {
-                // 尝试反射获取字段值
-                java.lang.reflect.Field field = event.getClass().getDeclaredField("instruction");
-                field.setAccessible(true);
-                instruction = (String) field.get(event);
-            } catch (Exception e) {
-                System.out.println("获取关键帧指令失败: " + e.getMessage());
-                instruction = "melee_attack_hit"; // 默认为普通攻击命中
-            }
-            handleKeyframeEvent(instruction);
-        });
-        
-        controllerRegistrar.add(controller);
+        controllerRegistrar.add(
+            // 主动画控制器
+            new AnimationController<>(this, "main_controller", 2, event -> {
+                // 获取速度
+                double speed = Math.sqrt(
+                    this.getVelocity().x * this.getVelocity().x + 
+                    this.getVelocity().z * this.getVelocity().z
+                );
+                
+                // 基于状态决定动画
+                if (this.dataTracker.get(IS_DYING)) {
+                    event.getController().setAnimation(DIE_ANIM);
+                } else if (this.dataTracker.get(IS_SUMMONING_VINES)) {
+                    event.getController().setAnimation(VINES_ANIM);
+                } else if (this.dataTracker.get(IS_GRABBING)) {
+                    event.getController().setAnimation(GRAB_ANIM);
+                } else if (this.dataTracker.get(IS_STOMPING)) {
+                    event.getController().setAnimation(STOMP_ANIM);
+                } else if (this.dataTracker.get(IS_ROARING)) {
+                    event.getController().setAnimation(ROAR_ANIM);
+                } else if (this.dataTracker.get(ATTACK_TYPE) == AttackType.LEFT.ordinal()) {
+                    event.getController().setAnimation(ATTACK_LEFT_ANIM);
+                } else if (this.dataTracker.get(ATTACK_TYPE) == AttackType.RIGHT.ordinal()) {
+                    event.getController().setAnimation(ATTACK_RIGHT_ANIM);
+                } else if (this.isAttacking && attackCooldown <= 0) {
+                    event.getController().setAnimation(ATTACK_ANIM);
+                } else if (speed > 0.01) { // 直接检查速度，而不是使用isMoving方法
+                    event.getController().setAnimation(WALK_ANIM);
+                    if (this.getWorld().isClient() && this.getWorld().getTime() % 20 == 0) {
+                        System.out.println("Animation Controller: TreeBoss正在移动，速度：" + speed);
+                    }
+                } else {
+                    event.getController().setAnimation(IDLE_ANIM);
+                    if (this.getWorld().isClient() && this.getWorld().getTime() % 20 == 0) {
+                        System.out.println("Animation Controller: TreeBoss静止中，速度：" + speed);
+                    }
+                }
+                
+                return PlayState.CONTINUE;
+            })
+            .setCustomInstructionKeyframeHandler(event -> {
+                // 获取关键帧指令并处理
+                String instruction = event.getClass().getSimpleName(); // 临时方案：使用事件的类名
+                // 尝试从事件中提取信息
+                try {
+                    // 尝试反射获取字段值
+                    java.lang.reflect.Field field = event.getClass().getDeclaredField("instruction");
+                    field.setAccessible(true);
+                    instruction = (String) field.get(event);
+                } catch (Exception e) {
+                    System.out.println("获取关键帧指令失败: " + e.getMessage());
+                    instruction = "melee_attack_hit"; // 默认为普通攻击命中
+                }
+                handleKeyframeEvent(instruction);
+            })
+        );
     }
     
     /**
@@ -1073,68 +1464,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
      */
     private void onKeyframeEvent(CustomInstructionKeyframeEvent<TreeBoss> event) {
         // 这个方法不再使用，因为我们现在使用匿名内部类处理事件
-    }
-    
-    private PlayState predicate(AnimationState<TreeBoss> state) {
-        // 检查是否正在死亡
-        if (this.dataTracker.get(IS_DYING)) {
-            // 播放死亡动画
-            state.getController().setAnimation(DIE_ANIM);
-            return PlayState.CONTINUE;
-        }
-        
-        // 检查是否正在召唤藤曼
-        if (this.dataTracker.get(IS_SUMMONING_VINES)) {
-            // 播放藤曼动画
-            state.getController().setAnimation(VINES_ANIM);
-            return PlayState.CONTINUE;
-        }
-        
-        // 检查是否正在执行抓取技能
-        if (this.dataTracker.get(IS_GRABBING)) {
-            // 播放抓取动画
-            state.getController().setAnimation(GRAB_ANIM);
-            return PlayState.CONTINUE;
-        }
-        
-        // 检查是否正在执行跺脚技能
-        if (this.dataTracker.get(IS_STOMPING)) {
-            // 播放跺脚动画
-            state.getController().setAnimation(STOMP_ANIM);
-            return PlayState.CONTINUE;
-        }
-        
-        // 检查是否正在执行怒吼技能
-        if (this.dataTracker.get(IS_ROARING)) {
-            // 播放怒吼动画
-            state.getController().setAnimation(ROAR_ANIM);
-            return PlayState.CONTINUE;
-        }
-        
-        // 获取实体当前状态
-        byte attackType = this.dataTracker.get(ATTACK_TYPE);
-        
-        if (attackType == AttackType.LEFT.ordinal()) {
-            // 播放左手攻击动画
-            state.getController().setAnimation(ATTACK_LEFT_ANIM);
-            return PlayState.CONTINUE;
-        } else if (attackType == AttackType.RIGHT.ordinal()) {
-            // 播放右手攻击动画
-            state.getController().setAnimation(ATTACK_RIGHT_ANIM);
-            return PlayState.CONTINUE;
-        } else if (this.isAttacking && attackCooldown <= 0) {
-            // 播放普通攻击动画
-            state.getController().setAnimation(ATTACK_ANIM);
-            return PlayState.CONTINUE;
-        } else if (state.isMoving()) {
-            // 移动时使用行走动画
-            state.getController().setAnimation(WALK_ANIM);
-            return PlayState.CONTINUE;
-        }
-        
-        // 默认使用闲置动画
-        state.getController().setAnimation(IDLE_ANIM);
-        return PlayState.CONTINUE;
     }
 
     // 覆盖攻击方法，设置攻击状态和冷却时间
@@ -1199,16 +1528,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         this.isAttacking = true;
         this.attackCooldown = 40; // 2秒冷却时间
         this.animationTicks = 0;
-        
-        // 播放音效
-        this.getWorld().playSound(
-            null, 
-            this.getX(), this.getY(), this.getZ(),
-            SoundEvents.ENTITY_ZOMBIE_ATTACK_WOODEN_DOOR,
-            SoundCategory.HOSTILE, 
-            1.0F, 
-            1.0F
-        );
         
         return true;
     }
@@ -1284,7 +1603,85 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         if (this.dataTracker.get(IS_DYING)) {
             return false;
         }
-        return super.damage(source, amount);
+        
+        // 是否命中上半身标志
+        boolean hitUpperBody = false;
+        
+        // 如果是玩家造成的伤害，执行额外的碰撞检测
+        if (source.getAttacker() instanceof PlayerEntity && !this.getWorld().isClient) {
+            PlayerEntity player = (PlayerEntity)source.getAttacker();
+            
+            // 获取当前正常碰撞箱
+            Box normalHitbox = this.getBoundingBox();
+            float boxHeight = (float)(normalHitbox.maxY - normalHitbox.minY);
+            
+            // 创建扩展的上半身碰撞箱 - 只用于伤害检测
+            float halfWidth = this.getWidth() / 2.0F;
+            Box upperBodyHitbox = new Box(
+                this.getX() - halfWidth, 
+                normalHitbox.minY + boxHeight * 0.5F, // 从一半高度开始
+                this.getZ() - halfWidth,
+                this.getX() + halfWidth, 
+                normalHitbox.minY + boxHeight * 1.2F, // 向上延伸20%
+                this.getZ() + halfWidth
+            );
+            
+            // 判断玩家攻击是否击中了上半身扩展碰撞箱
+            double reachDistance = player.isCreative() ? 6.0D : 3.0D;
+            Vec3d eyePos = player.getEyePos();
+            Vec3d lookVec = player.getRotationVec(1.0F);
+            Vec3d targetVec = eyePos.add(lookVec.x * reachDistance, lookVec.y * reachDistance, lookVec.z * reachDistance);
+            
+            // 如果击中了上半身扩展碰撞箱
+            if (upperBodyHitbox.raycast(eyePos, targetVec).isPresent()) {
+                System.out.println("TreeBoss上半身被击中!");
+                hitUpperBody = true;
+            }
+        }
+        
+        // 处理伤害
+        boolean damaged = super.damage(source, amount);
+        
+        // 如果成功造成伤害且生命值低于阈值，触发死亡程序
+        if (damaged && this.getHealth() <= 0 && !this.dataTracker.get(IS_DYING)) {
+            this.dataTracker.set(IS_DYING, true);
+            
+            // 设置无敌以防止在死亡动画中再次收到伤害
+            this.setInvulnerable(true);
+            
+            // 停止所有动画状态
+            stopAllAnimations();
+            
+            // 设置死亡计时器
+            this.deathTicks = 0;
+            
+            return true;
+        }
+        
+        return damaged;
+    }
+    
+    // 停止所有动画状态的辅助方法
+    private void stopAllAnimations() {
+        this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
+        this.dataTracker.set(IS_STOMPING, false);
+        this.dataTracker.set(IS_GRABBING, false);
+        this.dataTracker.set(IS_SUMMONING_VINES, false);
+        this.dataTracker.set(IS_ROARING, false);
+        
+        // 重置状态变量
+        this.isAttacking = false;
+        this.animationTicks = 0;
+        this.stompTicks = 0;
+        this.grabTicks = 0;
+        this.vinesTicks = 0;
+        this.roarTicks = 0;
+        this.attackCounter = 0;
+        
+        // 如果抓住了玩家，释放他们
+        if (this.grabbedPlayer != null) {
+            this.throwPlayer();
+        }
     }
     
     // 死亡时清理血条-这个方法不再直接从onDeath调用
@@ -1599,19 +1996,46 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         }
     }
 
-    // 返回实体碰撞箱的尺寸
+    // 返回实体碰撞箱的尺寸 - 使用较小的碰撞箱
     @Override
-    public net.minecraft.entity.EntityDimensions getDimensions(net.minecraft.entity.EntityPose pose) {
-        return super.getDimensions(pose).scaled(SIZE_SCALE);
+    public EntityDimensions getDimensions(EntityPose pose) {
+        // 增加高度以确保上半身能正确被击中
+        // 同时保持宽度适中，避免影响寻路
+        float width = 1.8F * SIZE_SCALE * COLLISION_SCALE;
+        float height = 3.5F * SIZE_SCALE; // 增加高度以覆盖整个模型
+        
+        if (this.getWorld().isClient() && this.getWorld().getTime() % 200 == 0) {
+            System.out.println("TreeBoss碰撞箱尺寸 - 宽度: " + width + ", 高度: " + height);
+        }
+        
+        return EntityDimensions.changing(width, height);
+    }
+    
+    @Override
+    public float getPathfindingFavor(BlockPos pos, WorldView world) {
+        // 增加较为开阔区域的偏好度
+        if (world.isAir(pos.up()) && world.isAir(pos.up(2))) {
+            // 更倾向于有空间的区域
+            return 1.0F;
+        }
+        
+        // 减少对树木和灌木丛区域的偏好
+        if (world.getBlockState(pos.up()).isIn(net.minecraft.registry.tag.BlockTags.LOGS) ||
+            world.getBlockState(pos.up()).isIn(net.minecraft.registry.tag.BlockTags.LEAVES)) {
+            return -0.5F;
+        }
+        
+        return super.getPathfindingFavor(pos, world);
     }
     
     // 设置眼睛高度
     @Override
     protected float getActiveEyeHeight(net.minecraft.entity.EntityPose pose, net.minecraft.entity.EntityDimensions dimensions) {
-        return dimensions.height * 0.85F; // 将眼睛高度设置为整体高度的85%
+        // 调整眼睛高度以匹配碰撞箱
+        return dimensions.height * 0.8F;
     }
 
-    // 获取渲染比例
+    // 获取渲染比例 - 保持视觉大小不变
     @Override
     public float getScaleFactor() {
         return SIZE_SCALE;
@@ -1625,6 +2049,201 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         // 检查实体的移动速度是否大于阈值
         double dx = this.getVelocity().x;
         double dz = this.getVelocity().z;
-        return Math.sqrt(dx * dx + dz * dz) > 0.02;
+        double speed = Math.sqrt(dx * dx + dz * dz);
+        
+        // 仅在客户端且每秒一次打印日志
+        if (this.getWorld().isClient() && this.getWorld().getTime() % 20 == 0) {
+            System.out.println("TreeBoss移动速度: " + speed + ", 阈值: 0.01");
+        }
+        
+        return speed > 0.01;
+    }
+
+    // 覆盖移动方法，添加平滑处理
+    @Override
+    public void travel(Vec3d movementInput) {
+        // 检查是否正在执行任何特殊动画
+        boolean isPlayingSpecialAnimation = this.dataTracker.get(IS_DYING) || 
+                                    this.dataTracker.get(IS_SUMMONING_VINES) ||
+                                    this.dataTracker.get(IS_GRABBING) ||
+                                    this.dataTracker.get(IS_STOMPING) ||
+                                    this.dataTracker.get(IS_ROARING);
+        
+        if (isPlayingSpecialAnimation) {
+            // 在特殊动画期间不移动
+            super.travel(Vec3d.ZERO);
+            return;
+        }
+        
+        if (this.isOnGround()) {
+            // 平滑转向 - 模拟凋零的移动
+            if (this.getTarget() != null) {
+                // 计算到目标的方向
+                double dx = this.getTarget().getX() - this.getX();
+                double dz = this.getTarget().getZ() - this.getZ();
+                double dist = Math.sqrt(dx * dx + dz * dz);
+                
+                // 如果已经很近，不要急转弯
+                if (dist > 4.0) {
+                    // 平滑更新朝向 - 缓慢转向目标
+                    this.bodyYaw = this.getYaw();
+                    
+                    // 如果正在进行攻击动画，降低移动速度
+                    if (this.dataTracker.get(ATTACK_TYPE) != AttackType.NONE.ordinal()) {
+                        movementInput = movementInput.multiply(0.5);
+                    }
+                }
+            }
+            
+            // 减少侧向滑动 - 模拟铁傀儡的稳定移动
+            Vec3d currentVel = this.getVelocity();
+            double speed = currentVel.horizontalLength();
+            
+            // 只有在移动快速时才应用稳定
+            if (speed > 0.05) {
+                // 朝向当前移动方向的单位向量
+                double velX = currentVel.x / speed;
+                double velZ = currentVel.z / speed;
+                
+                // 限制侧向滑动，增强前向移动
+                double stabilizedX = 0.9 * movementInput.x + 0.1 * velX * speed;
+                double stabilizedZ = 0.9 * movementInput.z + 0.1 * velZ * speed;
+                
+                super.travel(new Vec3d(stabilizedX, movementInput.y, stabilizedZ));
+            } else {
+                super.travel(movementInput);
+            }
+        } else {
+            super.travel(movementInput);
+        }
+    }
+
+    @Override
+    protected void mobTick() {
+        super.mobTick();
+        
+        // 路径平滑处理 - 抑制过度的路径重新计算
+        if (this.getTarget() != null && this.getNavigation().isFollowingPath()) {
+            // 获取当前路径
+            net.minecraft.entity.ai.pathing.Path currentPath = this.getNavigation().getCurrentPath();
+            
+            // 如果有有效路径且目标改变不大，保持当前路径
+            if (currentPath != null && !currentPath.isFinished()) {
+                // 如果目标移动距离不大，不更新路径
+                double maxUpdateDistance = this.getWidth() * 5.0;
+                
+                net.minecraft.entity.ai.pathing.PathNode targetNode = currentPath.getEnd();
+                if (targetNode != null && this.getTarget().squaredDistanceTo(
+                    targetNode.x, targetNode.y, targetNode.z) < maxUpdateDistance * maxUpdateDistance) {
+                    // 路径仍然有效，不重新计算路径
+                    // 修复continueFollowingPath不可见问题
+                    this.getNavigation().startMovingAlong(currentPath, 1.0D);
+                }
+            }
+        }
+        
+        // 检查并确保我们有目标
+        if (this.getTarget() == null || this.getTarget().isRemoved() || this.getTarget().isDead()) {
+            // 尝试寻找新目标
+            PlayerEntity closestPlayer = this.getWorld().getClosestPlayer(this, 32.0);
+            if (closestPlayer != null && !closestPlayer.isCreative() && !closestPlayer.isSpectator()) {
+                this.setTarget(closestPlayer);
+                
+                // 添加调试日志
+                System.out.println("TreeBoss找到新目标: " + closestPlayer.getName().getString());
+            }
+        } else {
+            // 如果目标距离过远，尝试更新路径
+            double distanceToTarget = this.squaredDistanceTo(this.getTarget());
+            if (distanceToTarget > 256.0 && this.getWorld().getTime() % 20 == 0) { // 16格以上，每秒检查一次
+                this.getNavigation().startMovingTo(this.getTarget(), 1.0);
+                System.out.println("TreeBoss重新寻路到远距离目标，距离: " + Math.sqrt(distanceToTarget));
+            }
+        }
+    }
+
+    // 扩展伤害检测的碰撞箱范围，适用于melee攻击的情况
+    @Override
+    public boolean isCollidable() {
+        return true; // 确保实体可碰撞
+    }
+
+    @Override
+    public boolean collidesWith(Entity other) {
+        // 对于玩家，使用更宽松的碰撞检测，其他实体保持正常
+        return other instanceof PlayerEntity ? 
+               this.isAlive() && !this.isRemoved() : 
+               super.collidesWith(other);
+    }
+
+    // 渲染伤害盒子的调试方法
+    private void renderHitboxes() {
+        if (this.getWorld().isClient()) {
+            Box normalHitbox = this.getBoundingBox();
+            float boxHeight = (float)(normalHitbox.maxY - normalHitbox.minY);
+            
+            // 创建扩展的上半身碰撞箱
+            float halfWidth = this.getWidth() / 2.0F;
+            Box upperBodyHitbox = new Box(
+                this.getX() - halfWidth, 
+                normalHitbox.minY + boxHeight * 0.5F, // 从一半高度开始
+                this.getZ() - halfWidth,
+                this.getX() + halfWidth, 
+                normalHitbox.minY + boxHeight * 1.2F, // 向上延伸20%
+                this.getZ() + halfWidth
+            );
+            
+            // 使用粒子效果可视化上半身碰撞箱的边缘
+            double stepSize = 0.2D;
+            
+            // 绘制上半身碰撞箱的顶部和底部边缘
+            for (double x = upperBodyHitbox.minX; x <= upperBodyHitbox.maxX; x += stepSize) {
+                for (double z = upperBodyHitbox.minZ; z <= upperBodyHitbox.maxZ; z += stepSize) {
+                    if (Math.abs(x - upperBodyHitbox.minX) < 0.1D || 
+                        Math.abs(x - upperBodyHitbox.maxX) < 0.1D || 
+                        Math.abs(z - upperBodyHitbox.minZ) < 0.1D || 
+                        Math.abs(z - upperBodyHitbox.maxZ) < 0.1D) {
+                        // 顶部边缘
+                        this.getWorld().addParticle(
+                            ParticleTypes.CRIT, 
+                            x, upperBodyHitbox.maxY, z, 
+                            0.0D, 0.0D, 0.0D
+                        );
+                        
+                        // 底部边缘
+                        this.getWorld().addParticle(
+                            ParticleTypes.CRIT, 
+                            x, upperBodyHitbox.minY, z, 
+                            0.0D, 0.0D, 0.0D
+                        );
+                    }
+                }
+            }
+            
+            // 绘制上半身碰撞箱的四个边缘柱子
+            for (double y = upperBodyHitbox.minY; y <= upperBodyHitbox.maxY; y += stepSize) {
+                // 四个角落的垂直线
+                this.getWorld().addParticle(
+                    ParticleTypes.CRIT, 
+                    upperBodyHitbox.minX, y, upperBodyHitbox.minZ, 
+                    0.0D, 0.0D, 0.0D
+                );
+                this.getWorld().addParticle(
+                    ParticleTypes.CRIT, 
+                    upperBodyHitbox.maxX, y, upperBodyHitbox.minZ, 
+                    0.0D, 0.0D, 0.0D
+                );
+                this.getWorld().addParticle(
+                    ParticleTypes.CRIT, 
+                    upperBodyHitbox.minX, y, upperBodyHitbox.maxZ, 
+                    0.0D, 0.0D, 0.0D
+                );
+                this.getWorld().addParticle(
+                    ParticleTypes.CRIT, 
+                    upperBodyHitbox.maxX, y, upperBodyHitbox.maxZ, 
+                    0.0D, 0.0D, 0.0D
+                );
+            }
+        }
     }
 }
