@@ -1430,15 +1430,15 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     event.getController().setAnimation(ATTACK_RIGHT_ANIM);
                 } else if (this.isAttacking && attackCooldown <= 0) {
                     event.getController().setAnimation(ATTACK_ANIM);
-                } else if (speed > 0.01) { // 直接检查速度，而不是使用isMoving方法
+                } else if (isMoving()) { // 使用isMoving方法代替直接检查速度
                     event.getController().setAnimation(WALK_ANIM);
-                    if (this.getWorld().isClient() && this.getWorld().getTime() % 20 == 0) {
-                        System.out.println("Animation Controller: TreeBoss正在移动，速度：" + speed);
+                    if (this.getWorld().isClient() && this.getWorld().getTime() % 100 == 0) {
+                        System.out.println("Animation Controller: TreeBoss正在移动");
                     }
                 } else {
                     event.getController().setAnimation(IDLE_ANIM);
-                    if (this.getWorld().isClient() && this.getWorld().getTime() % 20 == 0) {
-                        System.out.println("Animation Controller: TreeBoss静止中，速度：" + speed);
+                    if (this.getWorld().isClient() && this.getWorld().getTime() % 100 == 0) {
+                        System.out.println("Animation Controller: TreeBoss静止中");
                     }
                 }
                 
@@ -2061,75 +2061,41 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
      * @return 如果实体正在移动则返回true
      */
     private boolean isMoving() {
-        // 检查实体的移动速度是否大于阈值
-        double dx = this.getVelocity().x;
-        double dz = this.getVelocity().z;
-        double speed = Math.sqrt(dx * dx + dz * dz);
+        // 获取实体速度
+        double speed = Math.sqrt(
+            this.getVelocity().x * this.getVelocity().x + 
+            this.getVelocity().z * this.getVelocity().z
+        );
         
-        // 仅在客户端且每秒一次打印日志
-        if (this.getWorld().isClient() && this.getWorld().getTime() % 20 == 0) {
-            System.out.println("TreeBoss移动速度: " + speed + ", 阈值: 0.01");
-        }
+        // 检查实体是否有路径
+        boolean hasPath = this.getNavigation().getCurrentPath() != null;
         
-        return speed > 0.01;
+        // 如果速度超过阈值或有活动路径，则认为实体正在移动
+        return speed > 0.01 || hasPath;
     }
 
     // 覆盖移动方法，添加平滑处理
     @Override
     public void travel(Vec3d movementInput) {
-        // 检查是否正在执行任何特殊动画
-        boolean isPlayingSpecialAnimation = this.dataTracker.get(IS_DYING) || 
-                                    this.dataTracker.get(IS_SUMMONING_VINES) ||
-                                    this.dataTracker.get(IS_GRABBING) ||
-                                    this.dataTracker.get(IS_STOMPING) ||
-                                    this.dataTracker.get(IS_ROARING);
-        
-        if (isPlayingSpecialAnimation) {
-            // 在特殊动画期间不移动
+        // 如果实体正在死亡或正在使用某些技能，则不应移动
+        if (this.dataTracker.get(IS_DYING) || 
+            this.dataTracker.get(IS_STOMPING) ||
+            this.dataTracker.get(IS_GRABBING) ||
+            this.dataTracker.get(IS_SUMMONING_VINES) || 
+            this.dataTracker.get(IS_ROARING)) {
+            // 停止移动
             super.travel(Vec3d.ZERO);
             return;
         }
         
-        if (this.isOnGround()) {
-            // 平滑转向 - 模拟凋零的移动
-            if (this.getTarget() != null) {
-                // 计算到目标的方向
-                double dx = this.getTarget().getX() - this.getX();
-                double dz = this.getTarget().getZ() - this.getZ();
-                double dist = Math.sqrt(dx * dx + dz * dz);
-                
-                // 如果已经很近，不要急转弯
-                if (dist > 4.0) {
-                    // 平滑更新朝向 - 缓慢转向目标
-                    this.bodyYaw = this.getYaw();
-                    
-                    // 如果正在进行攻击动画，降低移动速度
-                    if (this.dataTracker.get(ATTACK_TYPE) != AttackType.NONE.ordinal()) {
-                        movementInput = movementInput.multiply(0.5);
-                    }
-                }
+        // 正常移动处理
+        super.travel(movementInput);
+        
+        // 更新移动音效
+        if (isMoving() && !this.getWorld().isClient()) {
+            if (moveSoundCooldown <= 0) {
+                // ... 现有的移动音效代码 ...
             }
-            
-            // 减少侧向滑动 - 模拟铁傀儡的稳定移动
-            Vec3d currentVel = this.getVelocity();
-            double speed = currentVel.horizontalLength();
-            
-            // 只有在移动快速时才应用稳定
-            if (speed > 0.05) {
-                // 朝向当前移动方向的单位向量
-                double velX = currentVel.x / speed;
-                double velZ = currentVel.z / speed;
-                
-                // 限制侧向滑动，增强前向移动
-                double stabilizedX = 0.9 * movementInput.x + 0.1 * velX * speed;
-                double stabilizedZ = 0.9 * movementInput.z + 0.1 * velZ * speed;
-                
-                super.travel(new Vec3d(stabilizedX, movementInput.y, stabilizedZ));
-            } else {
-                super.travel(movementInput);
-            }
-        } else {
-            super.travel(movementInput);
         }
     }
 
