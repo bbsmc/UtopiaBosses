@@ -7,6 +7,7 @@ import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.ai.control.MoveControl;
 import net.minecraft.entity.ai.goal.ActiveTargetGoal;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
 import net.minecraft.entity.ai.goal.LookAtEntityGoal;
@@ -14,6 +15,7 @@ import net.minecraft.entity.ai.goal.MeleeAttackGoal;
 import net.minecraft.entity.ai.goal.WanderAroundFarGoal;
 import net.minecraft.entity.ai.goal.RevengeGoal;
 import net.minecraft.entity.ai.goal.SwimGoal;
+import net.minecraft.entity.ai.pathing.EntityNavigation;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.boss.BossBar;
@@ -22,6 +24,7 @@ import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.entity.mob.ZombieEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -29,6 +32,7 @@ import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Util;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -101,8 +105,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     private int attackCounter = 0; // 攻击计数器，每4次普通攻击触发一次跺脚
     private PlayerEntity grabbedPlayer = null; // 被抓取的玩家
     private boolean hasThrown = false; // 是否已经投掷玩家
-    private boolean hasPlayedAttackSound = false; // 是否已播放初始攻击音效
-    private boolean hasPlayedHandSound = false; // 是否已播放左右手音效
     
     // 藤曼相关属性
     private List<PlayerEntity> snaredPlayers = new ArrayList<>(); // 被禁锢的玩家
@@ -142,18 +144,22 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             BossBar.Color.GREEN, 
             BossBar.Style.PROGRESS
         );
-        
-        // 设置碰撞箱大小
-        this.calculateDimensions();
-        
-        // 设置自定义导航器
-        if (!world.isClient) {
-            this.navigation = createNavigation(world);
-        }
     }
-    
+
+
+
+    EntityDimensions originalDimensions = new EntityDimensions(3F, 6F, true);
+
+    EntityDimensions fakeDimensions = new EntityDimensions(1.1F, 6F, true);
+
+    private boolean started = false;
+
+    public EntityDimensions getDimensions(EntityPose pose) {
+        return started ? fakeDimensions : originalDimensions;
+    }
+
     @Override
-    protected net.minecraft.entity.ai.pathing.EntityNavigation createNavigation(World world) {
+    protected EntityNavigation createNavigation(World world) {
         // 删除自定义导航，使用原版MobNavigation
         return new MobNavigation(this, world);
     }
@@ -170,144 +176,148 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     
     @Override
     protected void initGoals() {
-        // 基础生存AI
+        this.goalSelector.add(8, new LookAtEntityGoal(this, PlayerEntity.class, 40F));
+        this.goalSelector.add(8, new LookAroundGoal(this));
+        this.targetSelector.add(2, new ActiveTargetGoal(this, PlayerEntity.class, true));
+        this.goalSelector.add(1, new MeleeAttackGoal(this, 1D, true));
+//        // 基础生存AI
         this.goalSelector.add(0, new SwimGoal(this));
-        
-        // 攻击AI - 使用优化的攻击AI
-        this.goalSelector.add(1, new MeleeAttackGoal(this, 1.1D, true) {
-            private int updateCountdownTicks;
-            private int ticksUntilNextPathRecalculation;
-            private float lastUpdateChance;
-            private final double moveSpeed = 1.1D; // 攻击时略微提高移动速度
-            private int attackTick = 0; // 攻击计时器
-            
-            @Override
-            public void start() {
-                super.start();
-                this.ticksUntilNextPathRecalculation = 0;
-                this.attackTick = 0;
-                System.out.println("TreeBoss攻击AI启动");
-            }
-            
-            @Override
-            public void tick() {
-                LivingEntity target = TreeBoss.this.getTarget();
-                if (target == null) {
-                    System.out.println("TreeBoss没有目标，中止攻击");
-                    return;
-                }
-                
-                this.mob.getLookControl().lookAt(target, 30.0F, 30.0F);
-                
-                // 降低路径更新频率
-                this.updateCountdownTicks = Math.max(this.updateCountdownTicks - 1, 0);
-                
-                double distanceSquared = this.mob.squaredDistanceTo(target.getX(), target.getY(), target.getZ());
-                this.ticksUntilNextPathRecalculation = Math.max(this.ticksUntilNextPathRecalculation - 1, 0);
-                
-                // 使用更智能的路径更新逻辑
-                if (this.ticksUntilNextPathRecalculation <= 0 && 
-                    (this.updateCountdownTicks <= 0 || 
-                     this.mob.getRandom().nextFloat() < this.lastUpdateChance)) {
-                     
-                    this.ticksUntilNextPathRecalculation = 4 + this.mob.getRandom().nextInt(7);
-                    
-                    // 距离越远，更新概率越低
-                    if (distanceSquared > 1024.0D) {
-                        this.ticksUntilNextPathRecalculation += 10;
-                    } else if (distanceSquared > 256.0D) {
-                        this.ticksUntilNextPathRecalculation += 5;
-                    }
-                    
-                    // 更新路径，但不一定成功
-                    if (!this.mob.getNavigation().startMovingTo(target, this.moveSpeed)) { // 使用本地变量替代speed
-                        this.ticksUntilNextPathRecalculation += 15;
-                    }
-                    
-                    // 设置下次更新的随机概率
-                    this.lastUpdateChance = target.squaredDistanceTo(this.mob) > 256 ? 0.2f : 0.6f;
-                    this.updateCountdownTicks = 20 + TreeBoss.this.random.nextInt(20);
-                }
-                
-                // 攻击逻辑
-                attackTick = Math.max(attackTick - 1, 0);
-                
-                if (distanceSquared <= this.getSquaredMaxAttackDistance(target)) {
-                    // 如果在攻击范围内且攻击冷却结束
-                    if (attackTick <= 0) {
-                        // 在服务器端执行攻击尝试
-                        if (!TreeBoss.this.getWorld().isClient()) {
-                            attackTick = 20; // 20tick (1秒) 攻击冷却
-                            this.mob.swingHand(net.minecraft.util.Hand.MAIN_HAND);
-                            boolean success = TreeBoss.this.tryAttack(target);
-                            System.out.println("TreeBoss尝试攻击目标: " + (success ? "成功" : "失败") + ", 攻击冷却：" + TreeBoss.this.attackCooldown);
-                        }
-                    }
-                }
-            }
-            
-            @Override
-            protected double getSquaredMaxAttackDistance(LivingEntity entity) {
-                // 攻击范围匹配视觉模型
-                return 9.0D + entity.getWidth();
-            }
-        });
-        
-        // 移动AI - 自定义漫游AI，基于凋零的实现
-        this.goalSelector.add(2, new WanderAroundFarGoal(this, 0.65D, 0.0025F) { // 提高漫游速度
-            @Override
-            public boolean canStart() {
-                if (TreeBoss.this.attackCooldown > 0 || TreeBoss.this.getTarget() != null) {
-                    return false;
-                }
-                return super.canStart();
-            }
-        });
-        
-        // 观察AI - 低频率
-        this.goalSelector.add(3, new LookAtEntityGoal(this, PlayerEntity.class, 16.0F, 0.05F));
-        // 修复LookAroundGoal构造方法
-        this.goalSelector.add(4, new LookAroundGoal(this));
-        
-        // 目标选择AI
-        this.targetSelector.add(1, new RevengeGoal(this) {
-            @Override
-            public boolean shouldContinue() {
-                // 只持续追踪20秒以内设定的复仇目标
-                if (this.mob.getLastAttackTime() > 0 && 
-                    (this.mob.getWorld().getTime() - this.mob.getLastAttackTime()) > 400) {
-                    return false;
-                }
-                return super.shouldContinue();
-            }
-        });
-        this.targetSelector.add(2, new ActiveTargetGoal<>(this, PlayerEntity.class, true) {
-            @Override
-            protected void findClosestTarget() {
-                // 优先选择最近的非创造模式玩家
-                this.targetEntity = this.mob.getWorld().getClosestEntity(
-                    this.mob.getWorld().getEntitiesByClass(
-                        this.targetClass, 
-                        this.getSearchBox(this.getFollowRange()), 
-                        (entity) -> entity != null && !((PlayerEntity)entity).isCreative() && !((PlayerEntity)entity).isSpectator() && this.targetPredicate.test(this.mob, entity)
-                    ),
-                    this.targetPredicate,
-                    this.mob,
-                    this.mob.getX(),
-                    this.mob.getEyeY(),
-                    this.mob.getZ()
-                );
-                
-                // 添加调试日志
-                if (this.targetEntity != null && TreeBoss.this.getWorld().getTime() % 20 == 0) {
-                    System.out.println("TreeBoss选中目标: " + this.targetEntity.getName().getString() + ", 距离: " + TreeBoss.this.distanceTo(this.targetEntity));
-                }
-            }
-        });
-        
-        this.goalSelector.add(2, new MeleeAttackGoal(this, 0.9D, false) { // 使用更标准的移动速度
-            // ... 其他代码保持不变 ...
-        });
+//
+//        // 攻击AI - 使用优化的攻击AI
+//        this.goalSelector.add(1, new MeleeAttackGoal(this, 1.1D, true) {
+//            private int updateCountdownTicks;
+//            private int ticksUntilNextPathRecalculation;
+//            private float lastUpdateChance;
+//            private final double moveSpeed = 1.1D; // 攻击时略微提高移动速度
+//            private int attackTick = 0; // 攻击计时器
+//
+//            @Override
+//            public void start() {
+//                super.start();
+//                this.ticksUntilNextPathRecalculation = 0;
+//                this.attackTick = 0;
+//                System.out.println("TreeBoss攻击AI启动");
+//            }
+//
+//            @Override
+//            public void tick() {
+//                LivingEntity target = TreeBoss.this.getTarget();
+//                if (target == null) {
+//                    System.out.println("TreeBoss没有目标，中止攻击");
+//                    return;
+//                }
+//
+//                this.mob.getLookControl().lookAt(target, 30.0F, 30.0F);
+//
+////                // 降低路径更新频率
+////                this.updateCountdownTicks = Math.max(this.updateCountdownTicks - 1, 0);
+////
+////                double distanceSquared = this.mob.squaredDistanceTo(target.getX(), target.getY(), target.getZ());
+////                this.ticksUntilNextPathRecalculation = Math.max(this.ticksUntilNextPathRecalculation - 1, 0);
+////
+////                // 使用更智能的路径更新逻辑
+////                if (this.ticksUntilNextPathRecalculation <= 0 &&
+////                    (this.updateCountdownTicks <= 0 ||
+////                     this.mob.getRandom().nextFloat() < this.lastUpdateChance)) {
+////
+////                    this.ticksUntilNextPathRecalculation = 4 + this.mob.getRandom().nextInt(7);
+////
+////                    // 距离越远，更新概率越低
+////                    if (distanceSquared > 1024.0D) {
+////                        this.ticksUntilNextPathRecalculation += 10;
+////                    } else if (distanceSquared > 256.0D) {
+////                        this.ticksUntilNextPathRecalculation += 5;
+////                    }
+////
+////                    // 更新路径，但不一定成功
+////                    if (!this.mob.getNavigation().startMovingTo(target, this.moveSpeed)) { // 使用本地变量替代speed
+////                        this.ticksUntilNextPathRecalculation += 15;
+////                    }
+////
+////                     设置下次更新的随机概率
+////                    this.lastUpdateChance = target.squaredDistanceTo(this.mob) > 256 ? 0.2f : 0.6f;
+////                    this.updateCountdownTicks = 20 + TreeBoss.this.random.nextInt(20);
+////                }
+//
+//                // 攻击逻辑
+//                attackTick = Math.max(attackTick - 1, 0);
+//
+//                if (distanceSquared <= this.getSquaredMaxAttackDistance(target)) {
+//                    // 如果在攻击范围内且攻击冷却结束
+//                    if (attackTick <= 0) {
+//                        // 在服务器端执行攻击尝试
+//                        if (!TreeBoss.this.getWorld().isClient()) {
+//                            attackTick = 20; // 20tick (1秒) 攻击冷却
+//                            this.mob.swingHand(net.minecraft.util.Hand.MAIN_HAND);
+//                            boolean success = TreeBoss.this.tryAttack(target);
+//                            System.out.println("TreeBoss尝试攻击目标: " + (success ? "成功" : "失败") + ", 攻击冷却：" + TreeBoss.this.attackCooldown);
+//                        }
+//                    }
+//                }
+//            }
+//
+//            @Override
+//            protected double getSquaredMaxAttackDistance(LivingEntity entity) {
+//                // 攻击范围匹配视觉模型
+//                return 9.0D + entity.getWidth();
+//            }
+//        });
+//
+//        // 移动AI - 自定义漫游AI，基于凋零的实现
+//        this.goalSelector.add(2, new WanderAroundFarGoal(this, 0.65D, 0.0025F) { // 提高漫游速度
+//            @Override
+//            public boolean canStart() {
+//                if (TreeBoss.this.attackCooldown > 0 || TreeBoss.this.getTarget() != null) {
+//                    return false;
+//                }
+//                return super.canStart();
+//            }
+//        });
+//
+//        // 观察AI - 低频率
+//        this.goalSelector.add(3, new LookAtEntityGoal(this, PlayerEntity.class, 16.0F, 0.05F));
+//        // 修复LookAroundGoal构造方法
+//        this.goalSelector.add(4, new LookAroundGoal(this));
+//
+//        // 目标选择AI
+//        this.targetSelector.add(1, new RevengeGoal(this) {
+//            @Override
+//            public boolean shouldContinue() {
+//                // 只持续追踪20秒以内设定的复仇目标
+//                if (this.mob.getLastAttackTime() > 0 &&
+//                    (this.mob.getWorld().getTime() - this.mob.getLastAttackTime()) > 400) {
+//                    return false;
+//                }
+//                return super.shouldContinue();
+//            }
+//        });
+//        this.targetSelector.add(2, new ActiveTargetGoal<>(this, PlayerEntity.class, true) {
+//            @Override
+//            protected void findClosestTarget() {
+//                // 优先选择最近的非创造模式玩家
+//                this.targetEntity = this.mob.getWorld().getClosestEntity(
+//                    this.mob.getWorld().getEntitiesByClass(
+//                        this.targetClass,
+//                        this.getSearchBox(this.getFollowRange()),
+//                        (entity) -> entity != null && !((PlayerEntity)entity).isCreative() && !((PlayerEntity)entity).isSpectator() && this.targetPredicate.test(this.mob, entity)
+//                    ),
+//                    this.targetPredicate,
+//                    this.mob,
+//                    this.mob.getX(),
+//                    this.mob.getEyeY(),
+//                    this.mob.getZ()
+//                );
+//
+//                // 添加调试日志
+//                if (this.targetEntity != null && TreeBoss.this.getWorld().getTime() % 20 == 0) {
+//                    System.out.println("TreeBoss选中目标: " + this.targetEntity.getName().getString() + ", 距离: " + TreeBoss.this.distanceTo(this.targetEntity));
+//                }
+//            }
+//        });
+//
+//        this.goalSelector.add(2, new MeleeAttackGoal(this, 0.9D, false) { // 使用更标准的移动速度
+//            // ... 其他代码保持不变 ...
+//        });
     }
     
     @Override
@@ -325,139 +335,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
 
     @Override
     public void tick() {
-        // 保存当前的视角方向
-        float savedYaw = this.getYaw();
-        float savedPitch = this.getPitch();
-        float savedBodyYaw = this.bodyYaw;
-        float savedHeadYaw = this.headYaw;
-        
-        // 判断是否正在播放任何动画
-        boolean isPlayingAnimation = this.dataTracker.get(IS_DYING) || 
-                                    this.dataTracker.get(IS_SUMMONING_VINES) ||
-                                    this.dataTracker.get(IS_GRABBING) ||
-                                    this.dataTracker.get(IS_STOMPING) ||
-                                    this.dataTracker.get(IS_ROARING) ||
-                                    this.dataTracker.get(ATTACK_TYPE) != AttackType.NONE.ordinal();
-        
-        // 如果正在播放动画，防止过度转动
-        if (isPlayingAnimation) {
-            // 固定视角方向
-            this.setYaw(savedYaw);
-            this.setPitch(savedPitch);
-            this.bodyYaw = savedBodyYaw;
-            this.headYaw = savedHeadYaw;
-        }
-        
-        // 处理攻击音效
-        if (!this.getWorld().isClient() && this.dataTracker.get(ATTACK_TYPE) != AttackType.NONE.ordinal()) {
-            // 在动画开始时播放初始攻击音效
-            if (!hasPlayedAttackSound && animationTicks == 1) {
-                this.getWorld().playSound(
-                    null, 
-                    this.getX(), this.getY(), this.getZ(),
-                    SoundRegistry.ENTITY_TREEBOSS_TREE_ATTACK,
-                    SoundCategory.HOSTILE, 
-                    1.0F, 
-                    1.0F
-                );
-                hasPlayedAttackSound = true;
-            }
-            
-            // 在0.75秒(15帧)时播放左右手音效
-            if (!hasPlayedHandSound && animationTicks == 15) {
-                if (this.dataTracker.get(ATTACK_TYPE) == AttackType.LEFT.ordinal()) {
-                    this.getWorld().playSound(
-                        null, 
-                        this.getX(), this.getY(), this.getZ(),
-                        SoundRegistry.ENTITY_TREEBOSS_LEFT_ASTTACK,
-                        SoundCategory.HOSTILE, 
-                        1.0F, 
-                        0.8F
-                    );
-                } else if (this.dataTracker.get(ATTACK_TYPE) == AttackType.RIGHT.ordinal()) {
-                    this.getWorld().playSound(
-                        null, 
-                        this.getX(), this.getY(), this.getZ(),
-                        SoundRegistry.ENTITY_TREEBOSS_RIGHT_ASTTACK,
-                        SoundCategory.HOSTILE, 
-                        1.0F, 
-                        1.2F
-                    );
-                }
-                hasPlayedHandSound = true;
-            }
-        } else {
-            // 重置音效播放状态
-            hasPlayedAttackSound = false;
-            hasPlayedHandSound = false;
-        }
-        
-        // 处理移动动画音效
-        if (!this.getWorld().isClient() && !isPlayingAnimation) {
-            // 检测是否正在移动 - 使用isMoving()方法保持一致性
-            boolean movingNow = this.isMoving();
-            
-            // 首次开始移动或再次开始移动
-            if (movingNow && !isWalking) {
-                isWalking = true;
-                walkAnimTicks = 0;
-                playedFirstStepSound = false;
-                playedSecondStepSound = false;
-            } else if (!movingNow && isWalking) {
-                // 停止移动
-                isWalking = false;
-                walkAnimTicks = 0;
-            }
-            
-            // 如果正在行走，增加计时并播放音效
-            if (isWalking) {
-                walkAnimTicks++;
-                
-                // 计算当前移动速度
-                double speed = Math.sqrt(
-                    this.getVelocity().x * this.getVelocity().x + 
-                    this.getVelocity().z * this.getVelocity().z
-                );
-                
-                // 固定在第2.5帧和第15帧播放音效
-                int firstSoundTick = 3; // 约等于第2.5帧
-                int secondSoundTick = 15;
-                int cycleTicks = 20; // 保持完整循环为20帧
-                
-//                // 在第2.5帧播放第一次脚步声
-//                if (!playedFirstStepSound && walkAnimTicks == firstSoundTick) {
-//                    this.getWorld().playSound(
-//                        null,
-//                        this.getX(), this.getY(), this.getZ(),
-//                        SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
-//                        SoundCategory.HOSTILE,
-//                        0.8F,
-//                        1.2F
-//                    );
-//                    playedFirstStepSound = true;
-//                }
-//
-//                // 在第15帧播放第二次脚步声
-//                if (!playedSecondStepSound && walkAnimTicks == secondSoundTick) {
-//                    this.getWorld().playSound(
-//                        null,
-//                        this.getX(), this.getY(), this.getZ(),
-//                        SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
-//                        SoundCategory.HOSTILE,
-//                        0.8F,
-//                        0.9F
-//                    );
-//                    playedSecondStepSound = true;
-//                }
-                
-                // 走路动画一个完整循环后重置
-                if (walkAnimTicks >= cycleTicks) {
-                    walkAnimTicks = 0;
-                    playedFirstStepSound = false;
-                    playedSecondStepSound = false;
-                }
-            }
-        }
+
         
         // 减少移动音效冷却
         if (moveSoundCooldown > 0) {
@@ -488,15 +366,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 this.remove(Entity.RemovalReason.KILLED);
                 return;
             }
-            
-            // 必须在子类中调用super.tick()，但我们确保不运行原版死亡代码
-            super.tick();
-            
-            // 固定视角方向
-            this.setYaw(savedYaw);
-            this.setPitch(savedPitch);
-            this.bodyYaw = savedBodyYaw;
-            this.headYaw = savedHeadYaw;
+
             
             return; // 跳过正常的tick逻辑
         }
@@ -579,13 +449,13 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 attackCooldown = 80; // 设置技能后的冷却时间
             }
             
-            super.tick();
+//            super.tick();
             
-            // 固定视角方向
-            this.setYaw(savedYaw);
-            this.setPitch(savedPitch);
-            this.bodyYaw = savedBodyYaw;
-            this.headYaw = savedHeadYaw;
+//            // 固定视角方向
+//            this.setYaw(savedYaw);
+//            this.setPitch(savedPitch);
+//            this.bodyYaw = savedBodyYaw;
+//            this.headYaw = savedHeadYaw;
             
             return;
         }
@@ -621,13 +491,13 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 attackCooldown = 60; // 设置技能后的冷却时间
             }
             
-            super.tick();
+//            super.tick();
             
             // 固定视角方向
-            this.setYaw(savedYaw);
-            this.setPitch(savedPitch);
-            this.bodyYaw = savedBodyYaw;
-            this.headYaw = savedHeadYaw;
+//            this.setYaw(savedYaw);
+//            this.setPitch(savedPitch);
+//            this.bodyYaw = savedBodyYaw;
+//            this.headYaw = savedHeadYaw;
             
             return;
         }
@@ -649,15 +519,15 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 stompTicks = 0;
                 attackCooldown = 40; // 设置技能后的冷却时间
             }
-            
-            super.tick();
-            
+
+//            super.tick();
+
             // 固定视角方向
-            this.setYaw(savedYaw);
-            this.setPitch(savedPitch);
-            this.bodyYaw = savedBodyYaw;
-            this.headYaw = savedHeadYaw;
-            
+//            this.setYaw(savedYaw);
+//            this.setPitch(savedPitch);
+//            this.bodyYaw = savedBodyYaw;
+//            this.headYaw = savedHeadYaw;
+
             return;
         }
         
@@ -681,19 +551,25 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 roarTicks = 0;
                 attackCooldown = 60; // 设置技能后的冷却时间
             }
-            
-            super.tick();
-            
+
+//            super.tick();
+
             // 固定视角方向
-            this.setYaw(savedYaw);
-            this.setPitch(savedPitch);
-            this.bodyYaw = savedBodyYaw;
-            this.headYaw = savedHeadYaw;
-            
+//            this.setYaw(savedYaw);
+//            this.setPitch(savedPitch);
+//            this.bodyYaw = savedBodyYaw;
+//            this.headYaw = savedHeadYaw;
+
             return;
         }
-        
+
+        this.started = true;
+        this.reinitDimensions();
+        this.setBoundingBox(this.calculateBoundingBox());
         super.tick();
+        this.started = false;
+        this.reinitDimensions();
+        this.setBoundingBox(this.calculateBoundingBox());
         
         // 每10ticks强制刷新一次动画状态
         if (this.getWorld().isClient() && this.getWorld().getTime() % 10 == 0) {
@@ -742,10 +618,10 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 }
                 
                 // 固定视角方向
-                this.setYaw(savedYaw);
-                this.setPitch(savedPitch);
-                this.bodyYaw = savedBodyYaw;
-                this.headYaw = savedHeadYaw;
+//                this.setYaw(savedYaw);
+//                this.setPitch(savedPitch);
+//                this.bodyYaw = savedBodyYaw;
+//                this.headYaw = savedHeadYaw;
             } else {
                 animationTicks = 0;
             }
@@ -1273,15 +1149,15 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
      * 让BOSS面向指定实体
      */
     private void faceEntity(Entity entity) {
-        // 计算BOSS和目标之间的向量
-        double dx = entity.getX() - this.getX();
-        double dz = entity.getZ() - this.getZ();
-        float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0F;
-        
-        // 设置面向目标的视角
-        this.setYaw(yaw);
-        this.setHeadYaw(yaw);
-        this.setBodyYaw(yaw);
+//        // 计算BOSS和目标之间的向量
+//        double dx = entity.getX() - this.getX();
+//        double dz = entity.getZ() - this.getZ();
+//        float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0F;
+//
+//        // 设置面向目标的视角
+//        this.setYaw(yaw);
+//        this.setHeadYaw(yaw);
+//        this.setBodyYaw(yaw);
     }
     
     /**
@@ -1381,7 +1257,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             .setSoundKeyframeHandler(event -> {
                 // 处理声音关键帧
                 try {
-                    System.out.println(event.getKeyframeData().getSound());
                     if (event.getKeyframeData().getSound().equals("tree_run")) {
                         // 使用ClientPlayer播放声音
                         MinecraftClient.getInstance().getSoundManager().play(
@@ -1391,7 +1266,36 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                                 1.0F   // 增大音量
                             )
                         );
-                        System.out.println("在客户端播放树BOSS行走音效");
+                    }
+                    else if (event.getKeyframeData().getSound().equals("tree_attack")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                            PositionedSoundInstance.master(
+                                SoundRegistry.ENTITY_TREEBOSS_TREE_ATTACK,
+                                1.0F,  // 音调
+                                1.0F   // 增大音量
+                            )
+                        );
+                    }
+                    else if (event.getKeyframeData().getSound().equals("r_1")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                            PositionedSoundInstance.master(
+                                SoundRegistry.ENTITY_TREEBOSS_RIGHT_ASTTACK,
+                                1.0F,  // 音调
+                                1.0F   // 增大音量
+                            )
+                        );
+                    }
+                    else if (event.getKeyframeData().getSound().equals("l_1")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                            PositionedSoundInstance.master(
+                                SoundRegistry.ENTITY_TREEBOSS_LEFT_ASTTACK,
+                                1.0F,  // 音调
+                                1.0F   // 增大音量
+                            )
+                        );
                     }
                 } catch (Exception e) {
                     System.out.println("获取声音关键帧数据失败: " + e.getMessage());
@@ -1931,49 +1835,45 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     }
 
     // 返回实体碰撞箱的尺寸 - 使用较小的碰撞箱
-    @Override
-    public EntityDimensions getDimensions(EntityPose pose) {
-        // 增加高度以确保上半身能正确被击中
-        // 同时保持宽度适中，避免影响寻路
-        float width = 1.8F * SIZE_SCALE * COLLISION_SCALE;
-        float height = 3.5F * SIZE_SCALE; // 增加高度以覆盖整个模型
-        
-        if (this.getWorld().isClient() && this.getWorld().getTime() % 200 == 0) {
-            System.out.println("TreeBoss碰撞箱尺寸 - 宽度: " + width + ", 高度: " + height);
-        }
-        
-        return EntityDimensions.changing(width, height);
-    }
+//    @Override
+//    public EntityDimensions getDimensions(EntityPose pose) {
+//        // 增加高度以确保上半身能正确被击中
+//        // 同时保持宽度适中，避免影响寻路
+//        float width = 1.8F * SIZE_SCALE * COLLISION_SCALE;
+//        float height = 3.5F * SIZE_SCALE; // 增加高度以覆盖整个模型
+//
+//        if (this.getWorld().isClient() && this.getWorld().getTime() % 200 == 0) {
+//            System.out.println("TreeBoss碰撞箱尺寸 - 宽度: " + width + ", 高度: " + height);
+//        }
+//
+//        return EntityDimensions.changing(width, height);
+//    }
     
-    @Override
-    public float getPathfindingFavor(BlockPos pos, WorldView world) {
-        // 增加较为开阔区域的偏好度
-        if (world.isAir(pos.up()) && world.isAir(pos.up(2))) {
-            // 更倾向于有空间的区域
-            return 1.0F;
-        }
-        
-        // 减少对树木和灌木丛区域的偏好
-        if (world.getBlockState(pos.up()).isIn(net.minecraft.registry.tag.BlockTags.LOGS) ||
-            world.getBlockState(pos.up()).isIn(net.minecraft.registry.tag.BlockTags.LEAVES)) {
-            return -0.5F;
-        }
-        
-        return super.getPathfindingFavor(pos, world);
-    }
-    
-    // 设置眼睛高度
-    @Override
-    protected float getActiveEyeHeight(net.minecraft.entity.EntityPose pose, net.minecraft.entity.EntityDimensions dimensions) {
-        // 调整眼睛高度以匹配碰撞箱
-        return dimensions.height * 0.8F;
-    }
+//    @Override
+//    public float getPathfindingFavor(BlockPos pos, WorldView world) {
+//        // 增加较为开阔区域的偏好度
+//        if (world.isAir(pos.up()) && world.isAir(pos.up(2))) {
+//            // 更倾向于有空间的区域
+//            return 1.0F;
+//        }
+//
+//        // 减少对树木和灌木丛区域的偏好
+//        if (world.getBlockState(pos.up()).isIn(net.minecraft.registry.tag.BlockTags.LOGS) ||
+//            world.getBlockState(pos.up()).isIn(net.minecraft.registry.tag.BlockTags.LEAVES)) {
+//            return -0.5F;
+//        }
+//
+//        return super.getPathfindingFavor(pos, world);
+//    }
+//
+//    // 设置眼睛高度
+//    @Override
+//    protected float getActiveEyeHeight(net.minecraft.entity.EntityPose pose, net.minecraft.entity.EntityDimensions dimensions) {
+//        // 调整眼睛高度以匹配碰撞箱
+//        return dimensions.height * 0.8F;
+//    }
 
-    // 获取渲染比例 - 保持视觉大小不变
-    @Override
-    public float getScaleFactor() {
-        return SIZE_SCALE;
-    }
+
 
     /**
      * 判断实体是否在移动
@@ -2005,57 +1905,10 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         
         // 否则使用正常的移动处理
         super.travel(movementInput);
-        
-        // 处理移动音效
-        if (isMoving() && !this.getWorld().isClient()) {
-            // 移动音效处理代码保持不变
-            // ...
-        }
+
     }
 
-    @Override
-    protected void mobTick() {
-        super.mobTick();
-        
-        // 路径平滑处理 - 抑制过度的路径重新计算
-        if (this.getTarget() != null && this.getNavigation().isFollowingPath()) {
-            // 获取当前路径
-            net.minecraft.entity.ai.pathing.Path currentPath = this.getNavigation().getCurrentPath();
-            
-            // 如果有有效路径且目标改变不大，保持当前路径
-            if (currentPath != null && !currentPath.isFinished()) {
-                // 如果目标移动距离不大，不更新路径
-                double maxUpdateDistance = this.getWidth() * 5.0;
-                
-                net.minecraft.entity.ai.pathing.PathNode targetNode = currentPath.getEnd();
-                if (targetNode != null && this.getTarget().squaredDistanceTo(
-                    targetNode.x, targetNode.y, targetNode.z) < maxUpdateDistance * maxUpdateDistance) {
-                    // 路径仍然有效，不重新计算路径
-                    // 修复continueFollowingPath不可见问题
-                    this.getNavigation().startMovingAlong(currentPath, 1.0D);
-                }
-            }
-        }
-        
-        // 检查并确保我们有目标
-        if (this.getTarget() == null || this.getTarget().isRemoved() || this.getTarget().isDead()) {
-            // 尝试寻找新目标
-            PlayerEntity closestPlayer = this.getWorld().getClosestPlayer(this, 32.0);
-            if (closestPlayer != null && !closestPlayer.isCreative() && !closestPlayer.isSpectator()) {
-                this.setTarget(closestPlayer);
-                
-                // 添加调试日志
-                System.out.println("TreeBoss找到新目标: " + closestPlayer.getName().getString());
-            }
-        } else {
-            // 如果目标距离过远，尝试更新路径
-            double distanceToTarget = this.squaredDistanceTo(this.getTarget());
-            if (distanceToTarget > 256.0 && this.getWorld().getTime() % 20 == 0) { // 16格以上，每秒检查一次
-                this.getNavigation().startMovingTo(this.getTarget(), 1.0);
-                System.out.println("TreeBoss重新寻路到远距离目标，距离: " + Math.sqrt(distanceToTarget));
-            }
-        }
-    }
+
 
     // 扩展伤害检测的碰撞箱范围，适用于melee攻击的情况
     @Override

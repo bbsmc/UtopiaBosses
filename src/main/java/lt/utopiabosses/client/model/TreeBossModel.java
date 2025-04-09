@@ -8,7 +8,7 @@ import software.bernie.geckolib.model.DefaultedEntityGeoModel;
 public class TreeBossModel extends DefaultedEntityGeoModel<TreeBoss> {
     
     public TreeBossModel() {
-        super(new Identifier(Utopiabosses.MOD_ID, "tree_boss"));
+        super(new Identifier(Utopiabosses.MOD_ID, "tree_boss"),true);
         
         // 输出资源路径用于调试
         System.out.println("TreeBoss 模型预期路径: assets/utopiabosses/geo/tree_boss.geo.json");

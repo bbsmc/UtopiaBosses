@@ -36,7 +36,7 @@ public class EntityRegistry {
         Registries.ENTITY_TYPE,
         new Identifier(Utopiabosses.MOD_ID, "tree_boss"),
         FabricEntityTypeBuilder.create(SpawnGroup.MONSTER, TreeBoss::new)
-            .dimensions(EntityDimensions.fixed(3.0f, 6.0f))
+            .dimensions(EntityDimensions.fixed(0.6f, 1.2f))
             .build()
     );
     
