@@ -2,6 +2,8 @@ package lt.utopiabosses.entity;
 
 import lt.utopiabosses.registry.EntityRegistry;
 import lt.utopiabosses.registry.SoundRegistry;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -39,6 +41,7 @@ import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.keyframe.event.CustomInstructionKeyframeEvent;
+import software.bernie.geckolib.core.keyframe.event.SoundKeyframeEvent;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 import net.minecraft.entity.EntityDimensions;
@@ -502,31 +505,31 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 int secondSoundTick = 15;
                 int cycleTicks = 20; // 保持完整循环为20帧
                 
-                // 在第2.5帧播放第一次脚步声
-                if (!playedFirstStepSound && walkAnimTicks == firstSoundTick) {
-                    this.getWorld().playSound(
-                        null, 
-                        this.getX(), this.getY(), this.getZ(),
-                        SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
-                        SoundCategory.HOSTILE, 
-                        0.8F, 
-                        1.2F
-                    );
-                    playedFirstStepSound = true;
-                }
-                
-                // 在第15帧播放第二次脚步声
-                if (!playedSecondStepSound && walkAnimTicks == secondSoundTick) {
-                    this.getWorld().playSound(
-                        null, 
-                        this.getX(), this.getY(), this.getZ(),
-                        SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
-                        SoundCategory.HOSTILE, 
-                        0.8F, 
-                        0.9F
-                    );
-                    playedSecondStepSound = true;
-                }
+//                // 在第2.5帧播放第一次脚步声
+//                if (!playedFirstStepSound && walkAnimTicks == firstSoundTick) {
+//                    this.getWorld().playSound(
+//                        null,
+//                        this.getX(), this.getY(), this.getZ(),
+//                        SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
+//                        SoundCategory.HOSTILE,
+//                        0.8F,
+//                        1.2F
+//                    );
+//                    playedFirstStepSound = true;
+//                }
+//
+//                // 在第15帧播放第二次脚步声
+//                if (!playedSecondStepSound && walkAnimTicks == secondSoundTick) {
+//                    this.getWorld().playSound(
+//                        null,
+//                        this.getX(), this.getY(), this.getZ(),
+//                        SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
+//                        SoundCategory.HOSTILE,
+//                        0.8F,
+//                        0.9F
+//                    );
+//                    playedSecondStepSound = true;
+//                }
                 
                 // 走路动画一个完整循环后重置
                 if (walkAnimTicks >= cycleTicks) {
@@ -1456,16 +1459,28 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 }
                 handleKeyframeEvent(instruction);
             })
+            .setSoundKeyframeHandler(event -> {
+                // 处理声音关键帧
+                try {
+                    System.out.println(event.getKeyframeData().getSound());
+                    if (event.getKeyframeData().getSound().equals("tree_run")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                            PositionedSoundInstance.master(
+                                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN, 
+                                1.0F,  // 音调
+                                1.0F   // 增大音量
+                            )
+                        );
+                        System.out.println("在客户端播放树BOSS行走音效");
+                    }
+                } catch (Exception e) {
+                    System.out.println("获取声音关键帧数据失败: " + e.getMessage());
+                }
+            })
         );
     }
     
-    /**
-     * 处理关键帧事件
-     */
-    private void onKeyframeEvent(CustomInstructionKeyframeEvent<TreeBoss> event) {
-        // 这个方法不再使用，因为我们现在使用匿名内部类处理事件
-    }
-
     // 覆盖攻击方法，设置攻击状态和冷却时间
     @Override
     public boolean tryAttack(Entity target) {
@@ -2246,4 +2261,5 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             }
         }
     }
+
 }
