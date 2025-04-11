@@ -195,12 +195,18 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private List<SunPosition> sunPositions = new ArrayList<>();
 
     // 在类的开头添加调试开关
-    private static final boolean DEBUG_SUNBEAM_ONLY = false; // 调试开关：设为true时只使用阳光射线技能
+    private static final boolean DEBUG_SUNBEAM_ONLY = true; // 调试开关：设为true时只使用阳光射线技能
 
     // 添加新字段用于防止重复触发IDLE状态
     private long lastIdleSetTime = 0;
     // 添加计数器，用于跟踪右手攻击重置次数
     private int rightAttackResetCount = 0;
+
+    // 添加一个标志，指示技能是否应该在下一个tick重新启动
+    private boolean shouldRestartSunbeam = false;
+
+    // 添加一个调试模式下的攻击计数器
+    private int debugAttackCounter = 0;
 
     public SunflowerBossEntity(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
@@ -241,6 +247,15 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     System.out.println("检测到非阳光射线状态下的残留太阳，执行清理");
                     cleanupSuns();
                     cleanupAllSunsInWorld();
+                }
+                
+                // 在调试模式下，如果当前状态不是SUNBEAM，确保攻击计数器和冷却正常工作
+                if (DEBUG_SUNBEAM_ONLY && currentAnimation != AnimationType.SUNBEAM) {
+                    // 如果attackCooldown为0但没有目标，重置debugAttackCounter，避免卡在技能前夕
+                    if (attackCooldown <= 0 && this.getTarget() == null && debugAttackCounter > 0) {
+                        System.out.println("调试模式：无目标，重置攻击计数器");
+                        debugAttackCounter = 0;
+                    }
                 }
             }
             
@@ -569,7 +584,8 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 添加这段代码来确保BOSS始终面向目标
             // 但在播放死亡动画时不旋转
             LivingEntity target = this.getTarget();
-            if (target != null && !isPlayingDeathAnimation && currentAnimation != AnimationType.KUWEI_STORM) { 
+            if (target != null && !isPlayingDeathAnimation && currentAnimation != AnimationType.KUWEI_STORM
+                    && currentAnimation != AnimationType.SUNBEAM) { // 添加判断，阳光射线技能期间不旋转
                 // 增加对KUWEI_STORM动画的判断，确保死亡动画期间不旋转
                 // 计算朝向目标的角度
                 double deltaX = target.getX() - this.getX();
@@ -752,10 +768,26 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         sunPositions.clear();
         absorbedSunCount = 0;
         
+        // 尝试获取并立即朝向目标
+        LivingEntity target = this.getTarget();
+        if (target != null) {
+            // 计算朝向目标的角度
+            double deltaX = target.getX() - this.getX();
+            double deltaZ = target.getZ() - this.getZ();
+            float yaw = (float) Math.toDegrees(Math.atan2(deltaZ, deltaX)) - 90.0F;
+            
+            // 立即设置为朝向目标
+            this.setYaw(yaw);
+            this.bodyYaw = yaw;
+            this.headYaw = yaw;
+            
+            System.out.println("阳光灼烧射线技能：BOSS已对准目标，角度: " + yaw);
+        }
+        
         setAnimation(AnimationType.SUNBEAM);
         
-        // 在调试模式下将冷却时间设为最小值
-        sunbeamCooldown = DEBUG_SUNBEAM_ONLY ? 1 : 10;
+        // 在调试模式下将冷却时间设为0
+        sunbeamCooldown = DEBUG_SUNBEAM_ONLY ? 0 : 10;
         
         // 生成太阳
         spawnSuns();
@@ -1311,10 +1343,10 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 发送状态更新到客户端
             if (!this.getWorld().isClient()) {
                 try {
-                    // 先设置好追踪数据
+                    // 设置好追踪数据
                     dataTracker.set(ANIMATION_STATE, (byte)animation.ordinal());
                     
-                    // 向客户端发送状态更新
+                    // 向客户端发送状态更新，使用状态码10，但客户端会从追踪器读取正确的动画类型
                     this.getWorld().sendEntityStatus(this, (byte)10);
                     System.out.println("向客户端发送动画状态更新: " + animation + " (状态码: " + animation.ordinal() + ")");
                 } catch (Exception e) {
@@ -1393,71 +1425,50 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         int currentFrame = this.animationTicks;
         
         // 添加更多详细的日志信息
-        if (currentFrame % 10 == 0 || currentFrame == 100) {
+        if (currentFrame % 10 == 0 || currentFrame == 100) { // 改回100帧
             System.out.println("阳光灼烧射线技能执行中，当前帧: " + currentFrame + 
                               "，目标: " + target.getName().getString() + 
                               "，距离: " + this.distanceTo(target));
         }
         
+        // 在整个技能期间，始终让BOSS面向玩家
+        // 计算朝向目标的角度
+        double deltaX = target.getX() - this.getX();
+        double deltaZ = target.getZ() - this.getZ();
+        float yaw = (float) Math.toDegrees(Math.atan2(deltaZ, deltaX)) - 90.0F;
+        
+        // 直接设置朝向
+        this.setYaw(yaw);
+        this.bodyYaw = yaw;
+        this.headYaw = yaw;
+        
+        // 只在开始时和每30帧记录一次朝向日志，避免日志过多
+        if (currentFrame == 1 || currentFrame % 30 == 0) {
+            System.out.println("阳光灼烧射线技能：BOSS已对准目标，角度: " + yaw);
+        }
+        
         // 前100帧处理太阳相关的逻辑
-        if (currentFrame < 100) {
+        if (currentFrame < 100) { // 改回100帧
             // 更新太阳的位置和动画
             updateSuns(currentFrame);
         } else if (currentFrame < SUNBEAM_DURATION) {
             // 记录光束发射阶段开始
-            if (currentFrame == 100) {
+            if (currentFrame == 100) { // 改回100帧
                 System.out.println("阳光灼烧射线开始发射光束阶段，太阳数量: " + suns.size() + 
                                   "，目标位置: " + target.getPos());
             }
             
-            // 100-160帧执行360度扫射攻击
-            // 计算当前旋转角度 - 在60帧内完成两圈旋转
-            double rotationProgress = (currentFrame - 100) / 60.0; // 60帧完成两圈
-            double currentAngle = rotationProgress * (4 * Math.PI); // 4π = 720度 = 两圈
+            // 在100-160帧间，创建阳光射线
+            // 获取BOSS花朵中心位置作为光束起点
+            double headHeight = this.getHeight() * 0.65 + 1;
+            Vec3d beamStartPos = new Vec3d(this.getX(), this.getY() + headHeight, this.getZ());
             
-            // 每3帧发射一次光束
-            if (currentFrame % 3 == 0) {
-                // 从BOSS位置发射光束
-                double baseAngle = currentAngle; // 使用计算出的旋转角度
-                double beamLength = 20.0; // 光束长度
-                
-                // BOSS头部位置
-                Vec3d start = new Vec3d(
-                    this.getX(),
-                    this.getY() + this.getHeight() * 0.65,
-                    this.getZ()
-                );
-                
-                // 发射多个光束形成扇形
-                int beamsPerShot = 3; // 每次发射3个光束
-                double beamSpread = Math.PI / 8; // 光束之间的角度间隔
-                
-                // 每20帧输出一次详细的光束信息
-                if (currentFrame % 20 == 0) {
-                    System.out.println("发射光束，角度: " + Math.toDegrees(baseAngle) + 
-                                     "，起点: " + start + 
-                                     "，光束数量: " + beamsPerShot);
-                }
-                
-                for (int i = 0; i < beamsPerShot; i++) {
-                    double spreadOffset = (i - (beamsPerShot - 1) / 2.0) * beamSpread;
-                    double finalAngle = baseAngle + spreadOffset;
-                    createBeam(start, finalAngle, beamLength);
-                }
-                
-                // 播放光束音效
-                if (currentFrame % 6 == 0) { // 降低音效频率
-                    this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
-                        SoundEvents.ENTITY_GUARDIAN_ATTACK,
-                        SoundCategory.HOSTILE, 0.8f, 0.5f);
-                }
-                
-                // 设置BOSS的朝向跟随光束
-                float yawDegrees = (float) Math.toDegrees(baseAngle) + 90;
-                this.setYaw(yawDegrees);
-                this.bodyYaw = yawDegrees;
-                this.headYaw = yawDegrees;
-            }
+            // 使用当前角度创建光束（始终朝向玩家）
+            double angleRadians = Math.toRadians(yaw + 90); // 转换成弧度
+            double beamLength = 20.0; // 光束长度
+            
+            // 创建光束效果
+            createBeam(beamStartPos, angleRadians, beamLength);
         }
         
         // 技能结束时确保清理
@@ -1465,17 +1476,27 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             System.out.println("阳光灼烧射线技能结束，执行清理");
             cleanupSuns();
             
-            // 在调试模式下，技能结束后立即重新开始
+            // 在调试模式下，重置状态准备下一轮攻击
             if (DEBUG_SUNBEAM_ONLY) {
-                System.out.println("调试模式：技能结束，立即重新开始");
+                System.out.println("调试模式：技能结束，重置状态");
+                // 重置状态
                 this.animationTicks = 0;
                 this.currentAnimation = AnimationType.IDLE;
                 this.isAnimationLocked = false;
+                this.sunbeamCooldown = 0; // 确保没有冷却时间
+                this.debugAttackCounter = 0; // 重置攻击计数器
+                this.attackCooldown = 0; // 清除攻击冷却
+                
+                // 确保状态更新被传递到客户端
+                if (!this.getWorld().isClient()) {
+                    this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.IDLE.ordinal());
+                    this.getWorld().sendEntityStatus(this, (byte)10);
+                }
             }
         }
     }
 
-    // 修改spawnSuns方法，增加生成半径
+    // 修改spawnSuns方法，恢复原来的生成半径
     private void spawnSuns() {
         if (this.getWorld().isClient()) return;
         
@@ -1487,10 +1508,10 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         // 生成5个太阳围绕BOSS头部
         for (int i = 0; i < 5; i++) {
             double angle = (i * 2 * Math.PI) / 5;
-            double radius = 10.0; // 将半径从5.0增加到10.0
+            double radius = 10.0; // 将半径恢复到10.0
             double x = this.getX() + Math.cos(angle) * radius;
             double z = this.getZ() + Math.sin(angle) * radius;
-            double y = this.getY() + this.getHeight() * 0.65 + 4;
+            double y = this.getY() + this.getHeight() * 0.65 + 4; // 高度恢复为原来的4
             
             try {
                 SunEntity sun = new SunEntity(EntityType.ITEM, this.getWorld());
@@ -1516,7 +1537,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         }
     }
 
-    // 修改updateSuns方法，使用新的移动系统
+    // 修改updateSuns方法，恢复原来的太阳回收时间
     private void updateSuns(int currentFrame) {
         if (this.getWorld().isClient()) return;
         
@@ -1890,13 +1911,65 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
     // 新方法：按照指定模式执行攻击
     private void executeAttackPattern(LivingEntity target, double distance) {
-        // 如果开启了调试模式，只使用阳光射线技能
+        // 如果开启了调试模式，在执行两次普通攻击后才使用阳光射线技能
         if (DEBUG_SUNBEAM_ONLY) {
-            // 检查当前是否在IDLE状态且没有锁定
-            if (this.currentAnimation == AnimationType.IDLE && !isAnimationLocked) {
-                System.out.println("调试模式：强制使用阳光射线技能");
-                startSunbeamSkill();
+            // 检查当前是否可以执行攻击
+            if (attackCooldown > 0 || isAnimationLocked) {
+                return;
             }
+            
+            // 如果当前是SUNBEAM状态，不执行其他攻击
+            if (currentAnimation == AnimationType.SUNBEAM) {
+                return;
+            }
+            
+            // 计算是否应该执行阳光射线技能
+            if (debugAttackCounter >= 2) {
+                // 重置计数器
+                debugAttackCounter = 0;
+                
+                System.out.println("调试模式：已完成两次普通攻击，触发阳光射线技能");
+                
+                // 如果当前仍然锁定，强行解除锁定
+                if (isAnimationLocked) {
+                    System.out.println("调试模式：强制解除动画锁定");
+                    isAnimationLocked = false;
+                    animationLockTimer = 0;
+                }
+                
+                // 立即启动太阳光束技能
+                startSunbeamSkill();
+                return;
+            }
+            
+            // 如果未达到计数要求，执行普通攻击
+            System.out.println("调试模式：执行普通攻击 " + (debugAttackCounter + 1) + "/2");
+            
+            // 根据距离选择攻击方式
+            if (distance <= 6.0) {
+                // 在6格以内执行近战攻击
+                System.out.println("执行近战攻击，距离: " + distance);
+                
+                // 随机选择左手或右手攻击
+                if (this.random.nextBoolean()) {
+                    System.out.println("选择执行左手攻击，将在第21帧触发伤害");
+                    setAnimation(AnimationType.LEFT_MELEE_ATTACK);
+                } else {
+                    System.out.println("选择执行右手攻击，将在第40帧触发伤害");
+                    setAnimation(AnimationType.RIGHT_MELEE_ATTACK);
+                }
+            } else {
+                // 在6格以外执行远程攻击
+                System.out.println("执行远程普通攻击");
+                executeSimpleRangedAttack(target);
+            }
+            
+            // 增加计数器
+            debugAttackCounter++;
+            
+            // 设置攻击冷却
+            attackCooldown = ATTACK_COOLDOWN_TIME;
+            
             return;
         }
 
@@ -2058,60 +2131,63 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         // 获取当前播放的动画类型
                         AnimationType previousAnimation = this.currentAnimation;
                         
-                        // 状态码10是专门用于重置为IDLE状态的，所以我们直接强制设置为IDLE
-                        // 不再尝试从服务器或dataTracker获取状态
+                        // 从追踪器获取最新状态，而不是强制设置为IDLE
+                        byte animationId = this.dataTracker.get(ANIMATION_STATE);
                         AnimationType serverAnimType = AnimationType.IDLE;
+                        if (animationId >= 0 && animationId < AnimationType.values().length) {
+                            serverAnimType = AnimationType.values()[animationId];
+                        }
                         
-                        System.out.println("客户端接收到动画状态: " + serverAnimType);
+                        System.out.println("客户端接收到动画状态更新: " + serverAnimType);
                         
-                        // 强制应用IDLE状态
+                        // 更新动画状态
                         this.currentAnimation = serverAnimType;
                         this.animationTicks = 0;
                         
-                        // 如果上一个动画是右手攻击，特殊处理
-                        if (previousAnimation == AnimationType.RIGHT_MELEE_ATTACK) {
-                            System.out.println("检测到右手攻击结束，执行强制重置");
-                            
-                            // 首先停止所有动画
-                            try {
-                                // 完全停止当前动画
-                                triggerAnim("controller", "idle");
+                        // 根据新的动画类型触发相应动画
+                        switch(serverAnimType) {
+                            case LEFT_MELEE_ATTACK:
+                                forceTriggerAnimation("controller", "left_attack");
+                                break;
+                            case RIGHT_MELEE_ATTACK:
+                                forceTriggerAnimation("controller", "right_attack");
+                                break;
+                            case RANGED_ATTACK:
+                                forceTriggerAnimation("controller", "ranged");
+                                break;
+                            case SEED_BARRAGE:
+                                forceTriggerAnimation("controller", "seed_barrage");
+                                break;
+                            case SUNBEAM:
+                                // 多次触发阳光射线动画，确保播放
+                                forceTriggerAnimation("controller", "sunbeam");
+                                System.out.println("客户端触发阳光射线动画(数据变更)");
                                 
-                                // 强制更新数据追踪器
-                                this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.IDLE.ordinal());
-                                
-                                // 启动一个定时任务，50ms后再次触发IDLE动画
-                                // 这是为了确保GeckoLib有时间处理动画停止
+                                // 强制使用线程在短时间后再次触发动画，确保播放
                                 new Thread(() -> {
                                     try {
-                                        Thread.sleep(50);
-                                        // 再次触发IDLE动画
-                                        triggerAnim("controller", "idle");
-                                        // 额外保险：再次延迟并触发
-                                        Thread.sleep(50);
-                                        forceTriggerAnimation("controller", "idle");
-                                        
-                                        // 立即重置动画状态
-                                        LivingEntity entity = (LivingEntity)this;
-                                        // 确保其他玩家也能看到更新
-                                        if (entity.getWorld() != null && !entity.getWorld().isClient()) {
-                                            // 发送状态更新
-                                            entity.getWorld().sendEntityStatus(entity, (byte)10);
+                                        Thread.sleep(100);
+                                        // 再次检查状态，如果仍然是SUNBEAM，则再次触发
+                                        if (currentAnimation == AnimationType.SUNBEAM) {
+                                            System.out.println("客户端延迟再次触发阳光射线动画");
+                                            triggerAnim("controller", "sunbeam");
                                         }
                                     } catch (Exception e) {
-                                        // 忽略
+                                        // 忽略异常
                                     }
                                 }).start();
-                            } catch (Exception e) {
-                                System.out.println("强制重置动画时出错: " + e.getMessage());
-                            }
-                        } else {
-                            // 直接触发IDLE动画
-                            System.out.println("客户端触发待机动画");
-                            forceTriggerAnimation("controller", "idle");
+                                break;
+                            case PETAL_STORM:
+                                forceTriggerAnimation("controller", "petal_storm");
+                                break;
+                            case IDLE:
+                            default:
+                                System.out.println("客户端触发待机动画");
+                                forceTriggerAnimation("controller", "idle");
+                                break;
                         }
                         
-                        // 记录IDLE触发时间
+                        // 记录动画触发时间
                         lastIdleSetTime = System.currentTimeMillis();
                     } catch (Exception e) {
                         System.out.println("处理动画同步请求时出错: " + e.getMessage());
@@ -2292,8 +2368,23 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                                 System.out.println("客户端触发葵花籽弹幕动画(数据变更)");
                                 break;
                             case SUNBEAM:
+                                // 多次触发阳光射线动画，确保播放
                                 forceTriggerAnimation("controller", "sunbeam");
                                 System.out.println("客户端触发阳光射线动画(数据变更)");
+                                
+                                // 强制使用线程在短时间后再次触发动画，确保播放
+                                new Thread(() -> {
+                                    try {
+                                        Thread.sleep(100);
+                                        // 再次检查状态，如果仍然是SUNBEAM，则再次触发
+                                        if (currentAnimation == AnimationType.SUNBEAM) {
+                                            System.out.println("客户端延迟再次触发阳光射线动画");
+                                            triggerAnim("controller", "sunbeam");
+                                        }
+                                    } catch (Exception e) {
+                                        // 忽略异常
+                                    }
+                                }).start();
                                 break;
                             case PETAL_STORM:
                                 forceTriggerAnimation("controller", "petal_storm");
