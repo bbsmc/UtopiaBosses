@@ -12,14 +12,19 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemPlacementContext;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.particle.ParticleTypes;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.state.StateManager;
 import net.minecraft.state.property.BooleanProperty;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.random.Random;
 import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
+import net.minecraft.world.biome.Biome;
 import org.jetbrains.annotations.Nullable;
 
 public class NatureAltarBlock extends HorizontalFacingBlock implements BlockEntityProvider {
@@ -32,6 +37,7 @@ public class NatureAltarBlock extends HorizontalFacingBlock implements BlockEnti
         setDefaultState(getDefaultState().with(FACING, net.minecraft.util.math.Direction.NORTH).with(HAS_ESSENCE, false));
     }
 
+
     @Override
     protected void appendProperties(StateManager.Builder<Block, BlockState> builder) {
         builder.add(FACING, HAS_ESSENCE);
@@ -43,6 +49,12 @@ public class NatureAltarBlock extends HorizontalFacingBlock implements BlockEnti
         return super.getDefaultState()
                 .with(FACING, ctx.getHorizontalPlayerFacing().getOpposite())
                 .with(HAS_ESSENCE, false);
+    }
+
+
+    @Override
+    public void precipitationTick(BlockState state, World world, BlockPos pos, Biome.Precipitation precipitation) {
+        super.precipitationTick(state, world, pos, precipitation);
     }
 
     @Override

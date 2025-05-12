@@ -1,5 +1,6 @@
 package lt.utopiabosses.entity;
 
+import lt.utopiabosses.client.renderer.SunflowerBossRenderer;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.LookAtEntityGoal;
@@ -11,6 +12,7 @@ import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.particle.DefaultParticleType;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
@@ -19,6 +21,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import software.bernie.geckolib.animatable.GeoEntity;
+import software.bernie.geckolib.cache.object.BakedGeoModel;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.Animation;
@@ -51,7 +54,7 @@ import net.minecraft.entity.ItemEntity;
 import lt.utopiabosses.registry.SoundRegistry;
 public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
-    
+
     // 1. 修复动画定义 - 确保每个动画使用正确的资源
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().then("daiji", Animation.LoopType.LOOP);
     private static final RawAnimation LEFT_ATTACK_ANIM = RawAnimation.begin().then("zuobazhang", Animation.LoopType.PLAY_ONCE);
@@ -195,7 +198,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private List<SunPosition> sunPositions = new ArrayList<>();
 
     // 在类的开头添加调试开关
-    private static final boolean DEBUG_SUNBEAM_ONLY = true; // 调试开关：设为true时只使用阳光射线技能
+    private static final boolean DEBUG_SUNBEAM_ONLY = false; // 调试开关：设为true时只使用阳光射线技能
 
     // 添加新字段用于防止重复触发IDLE状态
     private long lastIdleSetTime = 0;
@@ -990,6 +993,80 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             .triggerableAnim("sunbeam", SUNBEAM_ANIM)
             .triggerableAnim("petal_storm", PETAL_STORM_ANIM)
             .triggerableAnim("kuwei", KUWEI_STORM_ANIM)
+            .setParticleKeyframeHandler(particleKeyframeEvent -> {
+                // 确保只在客户端执行粒子生成
+                if (getWorld().isClient()) {
+                    // 获取粒子应该在的位置
+                    Vec3d loc = SunflowerBossRenderer.getBonePosition(particleKeyframeEvent.getAnimatable().getId(), "liz");
+
+                    // 检查位置是否有效
+                    if (loc != null) {
+                        // 创建一次性爆发效果
+                        int particleCount = 60; // 一次性生成60个粒子
+                        float radius = 3.0f;    // 球形半径3格
+                        float initialSpeed = 0.6f; // 初始速度
+
+                        // 循环生成多个粒子形成爆发效果
+                        for (int i = 0; i < particleCount; i++) {
+                            // 球形分布的随机方向
+                            double phi = Math.random() * Math.PI * 2; // 水平角度
+                            double theta = Math.random() * Math.PI;   // 垂直角度
+                            
+                            // 计算方向向量 (球面坐标转笛卡尔坐标)
+                            double dirX = Math.sin(theta) * Math.cos(phi);
+                            double dirY = Math.cos(theta);
+                            double dirZ = Math.sin(theta) * Math.sin(phi);
+                            
+                            // 随机化初始位置（稍微偏离中心）
+                            double offsetX = (Math.random() - 0.5) * 0.2;
+                            double offsetY = (Math.random() - 0.5) * 0.2;
+                            double offsetZ = (Math.random() - 0.5) * 0.2;
+                            
+                            // 设置粒子初速度（向外发散）
+                            double velX = dirX * initialSpeed;
+                            double velY = dirY * initialSpeed;
+                            double velZ = dirZ * initialSpeed;
+                            
+                            // 选择不同的粒子类型增加变化
+                            DefaultParticleType particleType;
+                            int choice = i % 5;
+                            switch(choice) {
+                                case 0:
+                                    particleType = ParticleTypes.END_ROD; // 末地烛粒子，亮白色
+                                    break;
+                                case 1:
+                                    particleType = ParticleTypes.FIREWORK; // 烟花粒子，多彩
+                                    break;
+                                case 2:
+                                    particleType = ParticleTypes.SOUL_FIRE_FLAME; // 灵魂火焰，蓝色
+                                    break;
+                                case 3:
+                                    particleType = ParticleTypes.FLAME; // 普通火焰，橙色
+                                    break;
+                                default:
+                                    particleType = ParticleTypes.ELECTRIC_SPARK; // 电火花，白色
+                                    break;
+                            }
+                            
+                            // 添加粒子与初速度
+                            getWorld().addParticle(
+                                particleType,
+                                loc.getX() + offsetX, 
+                                loc.getY() + offsetY,
+                                loc.getZ() + offsetZ,
+                                velX, velY, velZ
+                            );
+                        }
+                        
+                        // 额外添加中心爆发效果
+                        getWorld().addParticle(
+                            ParticleTypes.EXPLOSION,
+                            loc.getX(), loc.getY(), loc.getZ(),
+                            0, 0, 0
+                        );
+                    }
+                }
+            })
         );
     }
 
@@ -1465,7 +1542,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             
             // 使用当前角度创建光束（始终朝向玩家）
             double angleRadians = Math.toRadians(yaw + 90); // 转换成弧度
-            double beamLength = 20.0; // 光束长度
+            double beamLength = 25.0; // 光束长度
             
             // 创建光束效果
             createBeam(beamStartPos, angleRadians, beamLength);
@@ -1761,43 +1838,10 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             
             // 光束终点
             Vec3d end = start.add(direction.multiply(beamLength));
-            
-            // 创建光束粒子
-            if (this.getWorld() instanceof ServerWorld serverWorld) {
-                // 主光束 - 减少粒子密度
-                for (double d = 0; d < beamLength; d += 0.8) { // 进一步减少粒子密度
-                    Vec3d pos = start.add(direction.multiply(d));
-                    
-                    // 主光束 - 白色
-                    serverWorld.spawnParticles(
-                        ParticleTypes.END_ROD,
-                        pos.x, pos.y, pos.z,
-                        1,
-                        0.05, 0.05, 0.05, 0
-                    );
-                    
-                    // 极低概率生成火焰粒子
-                    if (random.nextFloat() < 0.1) { // 降低火焰粒子生成概率
-                        serverWorld.spawnParticles(
-                            ParticleTypes.FLAME,
-                            pos.x, pos.y, pos.z,
-                            1,
-                            0.1, 0.1, 0.1, 0.05
-                        );
-                    }
-                }
-                
-                // 只在光束末端生成一个小型爆炸效果
-                serverWorld.spawnParticles(
-                    ParticleTypes.EXPLOSION,
-                    end.x, end.y, end.z,
-                    1,
-                    0.2, 0.2, 0.2, 0.1
-                );
-            }
+
             
             // 添加更详细的调试信息
-            System.out.println("创建光束 - 起点: " + start + ", 角度: " + Math.toDegrees(angleRadians) + "°, 长度: " + beamLength);
+//            System.out.println("创建光束 - 起点: " + start + ", 角度: " + Math.toDegrees(angleRadians) + "°, 长度: " + beamLength);
             
             // 伤害检测逻辑
             Box beamBox = new Box(
@@ -1805,13 +1849,13 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 Math.max(start.x, end.x) + 1.5, Math.max(start.y, end.y) + 1.5, Math.max(start.z, end.z) + 1.5
             );
             
-            System.out.println("光束碰撞箱: " + beamBox);
+//            System.out.println("光束碰撞箱: " + beamBox);
             
             List<PlayerEntity> players = this.getWorld().getEntitiesByClass(
                 PlayerEntity.class, beamBox, player -> !player.isSpectator() && player.isAlive()
             );
             
-            System.out.println("检测到玩家数量: " + players.size());
+//            System.out.println("检测到玩家数量: " + players.size());
             
             for (PlayerEntity player : players) {
                 System.out.println("对玩家 " + player.getName().getString() + " 造成阳光射线伤害");

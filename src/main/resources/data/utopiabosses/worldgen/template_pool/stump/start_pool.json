@@ -1,0 +1,15 @@
+{
+    "name": "utopiabosses:stump/start_pool_stump",
+    "fallback": "minecraft:empty",
+    "elements": [
+        {
+            "weight": 1,
+            "element": {
+                "location": "utopiabosses:stump",
+                "processors": "minecraft:empty",
+                "projection": "rigid",
+                "element_type": "minecraft:single_pool_element"
+            }
+        }
+    ]
+}

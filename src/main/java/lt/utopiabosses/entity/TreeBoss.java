@@ -63,6 +63,8 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     
     // 调试用-固定执行的技能类型
     public static SkillType DEBUG_FIXED_SKILL = null;
+
+
     
     // 动画定义
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().then("idle", Animation.LoopType.LOOP);
@@ -182,142 +184,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         this.goalSelector.add(1, new MeleeAttackGoal(this, 1D, true));
 //        // 基础生存AI
         this.goalSelector.add(0, new SwimGoal(this));
-//
-//        // 攻击AI - 使用优化的攻击AI
-//        this.goalSelector.add(1, new MeleeAttackGoal(this, 1.1D, true) {
-//            private int updateCountdownTicks;
-//            private int ticksUntilNextPathRecalculation;
-//            private float lastUpdateChance;
-//            private final double moveSpeed = 1.1D; // 攻击时略微提高移动速度
-//            private int attackTick = 0; // 攻击计时器
-//
-//            @Override
-//            public void start() {
-//                super.start();
-//                this.ticksUntilNextPathRecalculation = 0;
-//                this.attackTick = 0;
-//                System.out.println("TreeBoss攻击AI启动");
-//            }
-//
-//            @Override
-//            public void tick() {
-//                LivingEntity target = TreeBoss.this.getTarget();
-//                if (target == null) {
-//                    System.out.println("TreeBoss没有目标，中止攻击");
-//                    return;
-//                }
-//
-//                this.mob.getLookControl().lookAt(target, 30.0F, 30.0F);
-//
-////                // 降低路径更新频率
-////                this.updateCountdownTicks = Math.max(this.updateCountdownTicks - 1, 0);
-////
-////                double distanceSquared = this.mob.squaredDistanceTo(target.getX(), target.getY(), target.getZ());
-////                this.ticksUntilNextPathRecalculation = Math.max(this.ticksUntilNextPathRecalculation - 1, 0);
-////
-////                // 使用更智能的路径更新逻辑
-////                if (this.ticksUntilNextPathRecalculation <= 0 &&
-////                    (this.updateCountdownTicks <= 0 ||
-////                     this.mob.getRandom().nextFloat() < this.lastUpdateChance)) {
-////
-////                    this.ticksUntilNextPathRecalculation = 4 + this.mob.getRandom().nextInt(7);
-////
-////                    // 距离越远，更新概率越低
-////                    if (distanceSquared > 1024.0D) {
-////                        this.ticksUntilNextPathRecalculation += 10;
-////                    } else if (distanceSquared > 256.0D) {
-////                        this.ticksUntilNextPathRecalculation += 5;
-////                    }
-////
-////                    // 更新路径，但不一定成功
-////                    if (!this.mob.getNavigation().startMovingTo(target, this.moveSpeed)) { // 使用本地变量替代speed
-////                        this.ticksUntilNextPathRecalculation += 15;
-////                    }
-////
-////                     设置下次更新的随机概率
-////                    this.lastUpdateChance = target.squaredDistanceTo(this.mob) > 256 ? 0.2f : 0.6f;
-////                    this.updateCountdownTicks = 20 + TreeBoss.this.random.nextInt(20);
-////                }
-//
-//                // 攻击逻辑
-//                attackTick = Math.max(attackTick - 1, 0);
-//
-//                if (distanceSquared <= this.getSquaredMaxAttackDistance(target)) {
-//                    // 如果在攻击范围内且攻击冷却结束
-//                    if (attackTick <= 0) {
-//                        // 在服务器端执行攻击尝试
-//                        if (!TreeBoss.this.getWorld().isClient()) {
-//                            attackTick = 20; // 20tick (1秒) 攻击冷却
-//                            this.mob.swingHand(net.minecraft.util.Hand.MAIN_HAND);
-//                            boolean success = TreeBoss.this.tryAttack(target);
-//                            System.out.println("TreeBoss尝试攻击目标: " + (success ? "成功" : "失败") + ", 攻击冷却：" + TreeBoss.this.attackCooldown);
-//                        }
-//                    }
-//                }
-//            }
-//
-//            @Override
-//            protected double getSquaredMaxAttackDistance(LivingEntity entity) {
-//                // 攻击范围匹配视觉模型
-//                return 9.0D + entity.getWidth();
-//            }
-//        });
-//
-//        // 移动AI - 自定义漫游AI，基于凋零的实现
-//        this.goalSelector.add(2, new WanderAroundFarGoal(this, 0.65D, 0.0025F) { // 提高漫游速度
-//            @Override
-//            public boolean canStart() {
-//                if (TreeBoss.this.attackCooldown > 0 || TreeBoss.this.getTarget() != null) {
-//                    return false;
-//                }
-//                return super.canStart();
-//            }
-//        });
-//
-//        // 观察AI - 低频率
-//        this.goalSelector.add(3, new LookAtEntityGoal(this, PlayerEntity.class, 16.0F, 0.05F));
-//        // 修复LookAroundGoal构造方法
-//        this.goalSelector.add(4, new LookAroundGoal(this));
-//
-//        // 目标选择AI
-//        this.targetSelector.add(1, new RevengeGoal(this) {
-//            @Override
-//            public boolean shouldContinue() {
-//                // 只持续追踪20秒以内设定的复仇目标
-//                if (this.mob.getLastAttackTime() > 0 &&
-//                    (this.mob.getWorld().getTime() - this.mob.getLastAttackTime()) > 400) {
-//                    return false;
-//                }
-//                return super.shouldContinue();
-//            }
-//        });
-//        this.targetSelector.add(2, new ActiveTargetGoal<>(this, PlayerEntity.class, true) {
-//            @Override
-//            protected void findClosestTarget() {
-//                // 优先选择最近的非创造模式玩家
-//                this.targetEntity = this.mob.getWorld().getClosestEntity(
-//                    this.mob.getWorld().getEntitiesByClass(
-//                        this.targetClass,
-//                        this.getSearchBox(this.getFollowRange()),
-//                        (entity) -> entity != null && !((PlayerEntity)entity).isCreative() && !((PlayerEntity)entity).isSpectator() && this.targetPredicate.test(this.mob, entity)
-//                    ),
-//                    this.targetPredicate,
-//                    this.mob,
-//                    this.mob.getX(),
-//                    this.mob.getEyeY(),
-//                    this.mob.getZ()
-//                );
-//
-//                // 添加调试日志
-//                if (this.targetEntity != null && TreeBoss.this.getWorld().getTime() % 20 == 0) {
-//                    System.out.println("TreeBoss选中目标: " + this.targetEntity.getName().getString() + ", 距离: " + TreeBoss.this.distanceTo(this.targetEntity));
-//                }
-//            }
-//        });
-//
-//        this.goalSelector.add(2, new MeleeAttackGoal(this, 0.9D, false) { // 使用更标准的移动速度
-//            // ... 其他代码保持不变 ...
-//        });
+
     }
     
     @Override
@@ -1100,6 +967,9 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             this.vinesSpawned = false;
             this.vinesHealTicks = 0;
             this.vinesDamageTicks = 0;
+            
+            // 在此处立即生成特效实体，确保与动画完全同步
+            lt.utopiabosses.util.EffectHelper.spawnSummoningEffect(this);
             
             // 重置攻击状态
             this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());

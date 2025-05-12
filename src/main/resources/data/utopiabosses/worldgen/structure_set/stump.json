@@ -1,0 +1,16 @@
+{
+  "structures": [
+    {
+      "structure": "utopiabosses:stump",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "salt": 1642136412,
+
+    "spacing": 40,
+
+    "separation": 20,
+    "type": "minecraft:random_spread"
+  }
+}

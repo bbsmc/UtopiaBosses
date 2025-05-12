@@ -5,6 +5,7 @@ import lt.utopiabosses.entity.SunflowerBossEntity;
 import lt.utopiabosses.entity.SunflowerSeedEntity;
 import lt.utopiabosses.entity.TreeBoss;
 import lt.utopiabosses.entity.LittleTreeMan;
+import lt.utopiabosses.entity.SummoningEntity;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.entity.EntityDimensions;
@@ -45,6 +46,15 @@ public class EntityRegistry {
         new Identifier(Utopiabosses.MOD_ID, "little_tree_man"),
         FabricEntityTypeBuilder.create(SpawnGroup.MONSTER, LittleTreeMan::new)
             .dimensions(EntityDimensions.fixed(0.6f, 1.2f))
+            .build()
+    );
+
+    public static final EntityType<SummoningEntity> SUMMONING = Registry.register(
+        Registries.ENTITY_TYPE,
+        new Identifier(Utopiabosses.MOD_ID, "summoning"),
+        FabricEntityTypeBuilder.<SummoningEntity>create(SpawnGroup.MISC, SummoningEntity::new)
+            .dimensions(EntityDimensions.fixed(3.0F, 3.0F))
+            .trackRangeBlocks(64).trackedUpdateRate(1)
             .build()
     );
     

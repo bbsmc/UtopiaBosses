@@ -10,8 +10,11 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+
+import java.util.Random;
 
 public class NatureAltarBlockEntity extends BlockEntity {
     private boolean hasEssence = false;
@@ -20,7 +23,9 @@ public class NatureAltarBlockEntity extends BlockEntity {
     private static final float FLOAT_AMPLITUDE = 0.15F;
     private static final float FLOAT_SPEED = 0.05F;
     private float floatOffset = 0.0F;
-    
+
+    static Random random =  new Random();
+
     // 避免直接引用BlockEntityRegistry.NATURE_ALTAR_BLOCK_ENTITY
     public NatureAltarBlockEntity(BlockPos pos, BlockState state) {
         this(null, pos, state);
@@ -30,6 +35,7 @@ public class NatureAltarBlockEntity extends BlockEntity {
     public NatureAltarBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type != null ? type : BlockEntityRegistry.NATURE_ALTAR_BLOCK_ENTITY, pos, state);
     }
+
     
     public boolean hasEssence() {
         return hasEssence;
@@ -52,6 +58,32 @@ public class NatureAltarBlockEntity extends BlockEntity {
             
             // 更新浮动位置
             entity.floatOffset = (float) Math.sin(world.getTime() * FLOAT_SPEED) * FLOAT_AMPLITUDE;
+        }
+
+
+
+        if (world.isClient){
+            // 粒子的数量
+            int count = 40;
+
+            // 粒子生成的立方体区域的一半边长
+            double range = 40.0;
+
+            // 粒子的最大速度
+            double speed = 0.2;
+
+            // 生成粒子
+            for (int i = 0; i < count; i++) {
+                double x = pos.getX() + 0.5 + (random.nextDouble() - 0.5) * range * 2;
+                double y = pos.getY() + 0.5 + (random.nextDouble() - 0.5) * range * 2;
+                double z = pos.getZ() + 0.5 + (random.nextDouble() - 0.5) * range * 2;
+
+                double deltaX = (random.nextDouble() - 0.5) * speed;
+                double deltaY = (random.nextDouble() - 0.5) * speed;
+                double deltaZ = (random.nextDouble() - 0.5) * speed;
+
+                world.addParticle(ParticleTypes.WAX_ON, x, y, z, deltaX, deltaY, deltaZ);
+            }
         }
     }
     

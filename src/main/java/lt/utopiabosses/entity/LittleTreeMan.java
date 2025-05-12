@@ -55,6 +55,8 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
     private static final RawAnimation RUN_ANIM = RawAnimation.begin().then("run", Animation.LoopType.LOOP);
     private static final RawAnimation SURPRISED_ANIM = RawAnimation.begin().then("surprised", Animation.LoopType.PLAY_ONCE);
 
+    private static final RawAnimation BOOM_ANIM = RawAnimation.begin().then("boom", Animation.LoopType.PLAY_ONCE);
+
     // 实体状态
     private static final TrackedData<Boolean> IS_SURPRISED = DataTracker.registerData(LittleTreeMan.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Boolean> IS_EXPLODING = DataTracker.registerData(LittleTreeMan.class, TrackedDataHandlerRegistry.BOOLEAN);
@@ -68,6 +70,8 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
     private int idleAnimationChoice = 0; // 0 = idle_1, 1 = idle_2
     private int runningTicks = 0; // 追踪奔跑动画播放时间
     private int idleTicks = 0; // 追踪待机动画播放时间
+    private int boomAnimationTicks = 0; // 追踪爆炸动画播放时间
+    private static final int BOOM_ANIMATION_LENGTH = 18; // 爆炸动画长度 (0.9167秒 ≈ 18 ticks)
     
     // 自爆范围和伤害
     private static final float EXPLOSION_RADIUS = 3.0F; // 爆炸范围
@@ -180,6 +184,7 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
         // 处理爆炸状态
         else if (this.dataTracker.get(IS_EXPLODING)) {
             explodingTicks++;
+            boomAnimationTicks++;
             // 设置实体静止
             this.setVelocity(0, this.getVelocity().y, 0);
             
@@ -188,7 +193,7 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
                 byte flashIntensity = 0;
                 
                 // 在爆炸过程中，使用更强烈的闪白效果模式
-                if (explodingTicks < 30) { // 1.5秒 = 30 ticks
+                if (boomAnimationTicks < BOOM_ANIMATION_LENGTH) { // 使用动画长度而不是固定时间
                     // 使用交替闪白模式，每隔几帧闪烁一次
                     if (explodingTicks % 2 == 0) {
                         // 直接设置为最大亮度 - 确保明显的闪白
@@ -199,7 +204,7 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
                     }
                     
                     // 爆炸临近时加快闪烁速度
-                    if (explodingTicks > 20) {
+                    if (boomAnimationTicks > BOOM_ANIMATION_LENGTH * 2/3) {
                         flashIntensity = (byte)(explodingTicks % 2 == 0 ? 15 : 10);
                     }
                 }
@@ -209,7 +214,7 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
                 ServerWorld serverWorld = (ServerWorld)this.getWorld();
                 
                 // 粒子效果频率随着爆炸临近增加
-                if (explodingTicks % Math.max(1, 3 - explodingTicks / 10) == 0) {
+                if (explodingTicks % Math.max(1, 3 - boomAnimationTicks / 6) == 0) {
                     // 烟雾粒子
                     serverWorld.spawnParticles(
                         ParticleTypes.SMOKE,
@@ -220,7 +225,7 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
                     );
                     
                     // 火焰粒子 - 提前出现并增加数量
-                    if (explodingTicks > 15) {
+                    if (boomAnimationTicks > BOOM_ANIMATION_LENGTH / 2) {
                         serverWorld.spawnParticles(
                             ParticleTypes.FLAME,
                             this.getX() + random.nextFloat() * 0.4f - 0.2f,
@@ -232,8 +237,8 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
                 }
             }
             
-            // 1.5秒后爆炸
-            if (explodingTicks >= 30) {
+            // 当爆炸动画播放完成时爆炸
+            if (boomAnimationTicks >= BOOM_ANIMATION_LENGTH) {
                 explode();
             }
         }
@@ -283,6 +288,7 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
         if (!this.getWorld().isClient()) {
             this.dataTracker.set(IS_EXPLODING, true);
             explodingTicks = 0;
+            boomAnimationTicks = 0;
             this.dataTracker.set(FLASH_INTENSITY, (byte)0);
             
             // 播放爆炸前的嘶嘶声
@@ -405,7 +411,8 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
         
         // 爆炸状态 - 保持当前动画,通过渲染器实现闪白效果
         if (this.dataTracker.get(IS_EXPLODING)) {
-            // 保持当前动画,不切换到爆炸动画
+            state.getController().setAnimationSpeed(1.0);
+            state.getController().setAnimation(BOOM_ANIM);
             return PlayState.CONTINUE;
         }
         
@@ -458,11 +465,11 @@ public class LittleTreeMan extends HostileEntity implements GeoEntity {
             return 0.0f;
         }
         
-        // 使用爆炸倒计时来计算闪白强度
-        float progress = explodingTicks / 30.0f; // 1.5秒 = 30 ticks
+        // 使用爆炸动画计时来计算闪白强度
+        float progress = boomAnimationTicks / (float)BOOM_ANIMATION_LENGTH;
         
         // 使用更快的闪烁频率
-        float flash = (float) Math.sin(progress * 30.0) * 0.5f + 0.5f;
+        float flash = (float) Math.sin(progress * Math.PI * 4) * 0.5f + 0.5f;
         
         // 随着时间推移增加基础亮度
         float baseIntensity = progress * 0.6f;

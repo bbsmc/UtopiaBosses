@@ -9,11 +9,7 @@ public class TreeBossModel extends DefaultedEntityGeoModel<TreeBoss> {
     
     public TreeBossModel() {
         super(new Identifier(Utopiabosses.MOD_ID, "tree_boss"),true);
-        
-        // 输出资源路径用于调试
-        System.out.println("TreeBoss 模型预期路径: assets/utopiabosses/geo/tree_boss.geo.json");
-        System.out.println("TreeBoss 纹理预期路径: assets/utopiabosses/textures/entity/tree_boss.png");
-        System.out.println("TreeBoss 动画预期路径: assets/utopiabosses/animations/tree_boss.animation.json");
+
     }
     
     @Override

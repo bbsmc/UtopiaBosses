@@ -1,0 +1,16 @@
+{
+  "structures": [
+    {
+      "structure": "utopiabosses:sunflower_garden",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "salt": 1642136474,
+
+    "spacing": 50,
+
+    "separation": 30,
+    "type": "minecraft:random_spread"
+  }
+}
