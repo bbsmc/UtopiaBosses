@@ -1,11 +1,7 @@
 package lt.utopiabosses.registry;
 
 import lt.utopiabosses.Utopiabosses;
-import lt.utopiabosses.entity.SunflowerBossEntity;
-import lt.utopiabosses.entity.SunflowerSeedEntity;
-import lt.utopiabosses.entity.TreeBoss;
-import lt.utopiabosses.entity.LittleTreeMan;
-import lt.utopiabosses.entity.SummoningEntity;
+import lt.utopiabosses.entity.*;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.entity.EntityDimensions;
@@ -53,7 +49,7 @@ public class EntityRegistry {
         Registries.ENTITY_TYPE,
         new Identifier(Utopiabosses.MOD_ID, "summoning"),
         FabricEntityTypeBuilder.<SummoningEntity>create(SpawnGroup.MISC, SummoningEntity::new)
-            .dimensions(EntityDimensions.fixed(3.0F, 3.0F))
+            .dimensions(EntityDimensions.fixed(6.0F, 6.0F))
             .trackRangeBlocks(64).trackedUpdateRate(1)
             .build()
     );

@@ -442,10 +442,10 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         if (this.getWorld().isClient() && this.getWorld().getTime() % 10 == 0) {
             forceAnimationRefresh();
             
-            // 如果开启了调试，每60ticks渲染一次伤害盒子
-            if (DEBUG_FIXED_SKILL != null && this.getWorld().getTime() % 60 == 0) {
-                renderHitboxes();
-            }
+//            // 如果开启了调试，每60ticks渲染一次伤害盒子
+//            if (DEBUG_FIXED_SKILL != null && this.getWorld().getTime() % 60 == 0) {
+//                renderHitboxes();
+//            }
         }
         
         if (!this.getWorld().isClient()) {
@@ -1188,8 +1188,8 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         // 首先面向目标
         faceEntity(target);
         
-        // 判断是否达到技能触发条件（第4次或第7次攻击）
-        boolean shouldUseSkill = (attackCounter >= 4);
+        // 判断是否达到技能触发条件（第4次或第7次攻击）或 DEBUG 模式
+        boolean shouldUseSkill = DEBUG_FIXED_SKILL != null || (attackCounter >= 4);
         
         // 如果达到技能释放条件
         if (shouldUseSkill) {

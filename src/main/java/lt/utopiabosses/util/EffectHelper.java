@@ -36,10 +36,17 @@ public class EffectHelper {
      * @return 生成的特效实体
      */
     public static SummoningEntity spawnSummoningEffect(Entity entity) {
-        return spawnSummoningEffect(
+        SummoningEntity effect = spawnSummoningEffect(
             entity.getWorld(), 
             new Vec3d(entity.getX(), entity.getY(), entity.getZ())
         );
+        
+        // 设置特效的拥有者为该实体（重要：这使特效的朝向与实体同步）
+        if (effect != null) {
+            effect.setOwner(entity);
+        }
+        
+        return effect;
     }
     
     /**
@@ -50,9 +57,16 @@ public class EffectHelper {
      * @return 生成的特效实体
      */
     public static SummoningEntity spawnSummoningEffect(Entity entity, double yOffset) {
-        return spawnSummoningEffect(
+        SummoningEntity effect = spawnSummoningEffect(
             entity.getWorld(), 
             new Vec3d(entity.getX(), entity.getY() + yOffset, entity.getZ())
         );
+        
+        // 设置特效的拥有者为该实体（重要：这使特效的朝向与实体同步）
+        if (effect != null) {
+            effect.setOwner(entity);
+        }
+        
+        return effect;
     }
 } 
