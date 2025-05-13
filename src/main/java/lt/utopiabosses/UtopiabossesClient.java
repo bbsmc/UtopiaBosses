@@ -5,6 +5,7 @@ import lt.utopiabosses.client.renderer.SunflowerSeedRenderer;
 import lt.utopiabosses.client.renderer.TreeBossRenderer;
 import lt.utopiabosses.client.renderer.LittleTreeManRenderer;
 import lt.utopiabosses.client.renderer.SummoningRenderer;
+import lt.utopiabosses.client.renderer.PlantSpiritRenderer;
 import lt.utopiabosses.client.renderer.block.NatureAltarBlockEntityRenderer;
 import lt.utopiabosses.client.renderer.item.*;
 import lt.utopiabosses.registry.EntityRegistry;
@@ -109,6 +110,10 @@ public class UtopiabossesClient implements ClientModInitializer {
             // 注册小树人渲染器
             LOGGER.info("注册小树人渲染器...");
             EntityRendererRegistry.register(EntityRegistry.LITTLE_TREE_MAN, LittleTreeManRenderer::new);
+            
+            // 注册植物精灵渲染器
+            LOGGER.info("注册植物精灵渲染器...");
+            EntityRendererRegistry.register(EntityRegistry.PLANT_SPIRIT, PlantSpiritRenderer::new);
             
             // 注册召唤特效渲染器
             LOGGER.info("注册召唤特效渲染器...");

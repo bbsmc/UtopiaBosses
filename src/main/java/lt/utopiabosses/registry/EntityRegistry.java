@@ -45,6 +45,14 @@ public class EntityRegistry {
             .build()
     );
 
+    public static final EntityType<PlantSpirit> PLANT_SPIRIT = Registry.register(
+        Registries.ENTITY_TYPE,
+        new Identifier(Utopiabosses.MOD_ID, "plant_spirit"),
+        FabricEntityTypeBuilder.create(SpawnGroup.MONSTER, PlantSpirit::new)
+            .dimensions(EntityDimensions.fixed(0.6f, 1.8f))
+            .build()
+    );
+
     public static final EntityType<SummoningEntity> SUMMONING = Registry.register(
         Registries.ENTITY_TYPE,
         new Identifier(Utopiabosses.MOD_ID, "summoning"),
@@ -59,6 +67,7 @@ public class EntityRegistry {
         FabricDefaultAttributeRegistry.register(SUNFLOWER_BOSS, SunflowerBossEntity.createAttributes());
         FabricDefaultAttributeRegistry.register(TREE_BOSS, TreeBoss.createAttributes());
         FabricDefaultAttributeRegistry.register(LITTLE_TREE_MAN, LittleTreeMan.createAttributes());
+        FabricDefaultAttributeRegistry.register(PLANT_SPIRIT, PlantSpirit.createAttributes());
     }
     
     public static void registerEntityAttributes() {

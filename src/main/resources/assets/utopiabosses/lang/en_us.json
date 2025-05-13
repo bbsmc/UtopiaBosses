@@ -29,6 +29,9 @@
   "item.utopiabosses.tree_spirit_staff.tooltip1": "Left-click: Absorb Life",
   "item.utopiabosses.tree_spirit_staff.tooltip2": "Right-click: Speed up plant growth",
   
+  "entity.utopiabosses.plant_spirit": "Plant Spirit",
+  "item.utopiabosses.plant_spirit_spawn_egg": "Plant Spirit Spawn Egg",
+  
   "subtitles.entity.utopiabosses.sunflower_boss.ambient": "Sunflower Boss: Whispering",
   "subtitles.entity.utopiabosses.sunflower_boss.hurt": "Sunflower Boss: Hurt",
   "subtitles.entity.utopiabosses.sunflower_boss.death": "Sunflower Boss: Death",
