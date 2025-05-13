@@ -1,19 +1,32 @@
 package lt.utopiabosses.entity;
 
 import lt.utopiabosses.registry.ItemRegistry;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.ai.goal.*;
+import net.minecraft.entity.ai.goal.RevengeGoal;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.data.TrackedDataHandlerRegistry;
-import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.entity.mob.Angerable;
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.Text;
+import net.minecraft.util.TimeHelper;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.intprovider.UniformIntProvider;
+import net.minecraft.util.math.random.Random;
+import net.minecraft.world.ServerWorldAccess;
 import net.minecraft.world.World;
+import org.jetbrains.annotations.Nullable;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
@@ -23,15 +36,14 @@ import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
-import java.util.Random;
+import java.util.UUID;
 
 /**
  * 植物精灵实体类
- * 敌对生物，具有和僵尸相同的生命值和攻击力
+ * 中立生物，只有在被攻击时才会反击，类似猪灵的反击机制
  */
-public class PlantSpirit extends HostileEntity implements GeoEntity {
+public class PlantSpirit extends PathAwareEntity implements GeoEntity, Angerable {
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
-    private final Random random = new Random();
     
     // 动画定义
     private static final RawAnimation IDEL_ANIM = RawAnimation.begin().then("idel", Animation.LoopType.LOOP);
@@ -40,6 +52,7 @@ public class PlantSpirit extends HostileEntity implements GeoEntity {
     
     // 实体状态
     private static final TrackedData<Boolean> IS_ATTACKING = DataTracker.registerData(PlantSpirit.class, TrackedDataHandlerRegistry.BOOLEAN);
+    private static final TrackedData<Integer> ANGER_TIME = DataTracker.registerData(PlantSpirit.class, TrackedDataHandlerRegistry.INTEGER);
     
     // 攻击相关
     private int attackCooldown = 0;
@@ -50,8 +63,12 @@ public class PlantSpirit extends HostileEntity implements GeoEntity {
     
     // 存储当前的攻击目标
     private Entity attackTarget = null;
+    
+    // 愤怒参数（类似猪灵）
+    private static final UniformIntProvider ANGER_TIME_RANGE = TimeHelper.betweenSeconds(20, 39);
+    private UUID targetUuid;
 
-    public PlantSpirit(EntityType<? extends HostileEntity> entityType, World world) {
+    public PlantSpirit(EntityType<? extends PathAwareEntity> entityType, World world) {
         super(entityType, world);
     }
 
@@ -59,31 +76,41 @@ public class PlantSpirit extends HostileEntity implements GeoEntity {
      * 创建实体属性，使用与僵尸相同的生命值和攻击力
      */
     public static DefaultAttributeContainer.Builder createAttributes() {
-        return HostileEntity.createHostileAttributes()
+        return PathAwareEntity.createMobAttributes()
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 20.0D) // 与僵尸相同的生命值 (10颗心)
                 .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 3.0D) // 与僵尸相同的攻击力
                 .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.25D) // 与僵尸相同的移动速度
                 .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 35.0D); // 追踪范围
     }
     
+    /**
+     * 判断植物精灵是否可以在特定位置生成
+     */
+    public static boolean canSpawn(EntityType<? extends PlantSpirit> type, ServerWorldAccess world, 
+                                   SpawnReason reason, BlockPos pos, Random random) {
+        return true;
+    }
+    
     @Override
     protected void initGoals() {
-        // 攻击目标
-        this.targetSelector.add(2, new ActiveTargetGoal<>(this, PlayerEntity.class, true));
-        
         // 行为目标
         this.goalSelector.add(0, new SwimGoal(this));
-        this.goalSelector.add(2, new MeleeAttackGoal(this, 1.0D, false));
+        this.goalSelector.add(1, new MeleeAttackGoal(this, 1.0D, false));
         this.goalSelector.add(5, new WanderAroundFarGoal(this, 1.0D));
-        this.goalSelector.add(8, new LookAtEntityGoal(this, PlayerEntity.class, 8.0F));
-        this.goalSelector.add(8, new LookAroundGoal(this));
-        this.goalSelector.add(2, new RevengeGoal(this));
+        this.goalSelector.add(6, new LookAtEntityGoal(this, PlayerEntity.class, 8.0F));
+        this.goalSelector.add(6, new LookAroundGoal(this));
+        
+        // 愤怒目标 - 猪灵风格的AI
+        this.targetSelector.add(1, new UniversalAngerGoal<>(this, true));
+        this.targetSelector.add(2, new ActiveTargetGoal<>(this, PlayerEntity.class, 10, true, false, this::shouldAngerAt));
+        this.targetSelector.add(3, new RevengeGoal(this));
     }
     
     @Override
     protected void initDataTracker() {
         super.initDataTracker();
         this.dataTracker.startTracking(IS_ATTACKING, false);
+        this.dataTracker.startTracking(ANGER_TIME, 0);
     }
     
     @Override
@@ -123,6 +150,11 @@ public class PlantSpirit extends HostileEntity implements GeoEntity {
         if (attackCooldown > 0) {
             attackCooldown--;
         }
+        
+        // 猪灵风格的愤怒机制
+        if (!this.getWorld().isClient()) {
+            this.tickAngerLogic((ServerWorld)this.getWorld(), true);
+        }
     }
     
     @Override
@@ -141,6 +173,68 @@ public class PlantSpirit extends HostileEntity implements GeoEntity {
         this.attackTarget = target;
         
         return true; // 返回true表示开始攻击动作
+    }
+    
+    /**
+     * 当实体受到伤害时被调用
+     */
+    @Override
+    public boolean damage(DamageSource source, float amount) {
+        boolean damaged = super.damage(source, amount);
+        
+        if (damaged && !this.getWorld().isClient) {
+            if (source.getAttacker() instanceof LivingEntity attacker) {
+                this.setAngryAt(attacker.getUuid());
+                this.setTarget((LivingEntity)attacker);
+                
+                // 让同区域的其他植物精灵也生气
+                if (attacker instanceof PlayerEntity) {
+                    this.getWorld().getNonSpectatingEntities(PlantSpirit.class, 
+                            this.getBoundingBox().expand(16.0, 8.0, 16.0)).forEach(spirit -> {
+                        if (spirit != this && spirit.getTarget() == null) {
+                            spirit.setAngryAt(attacker.getUuid());
+                            spirit.setTarget(attacker);
+                        }
+                    });
+                }
+            }
+        }
+        
+        return damaged;
+    }
+    
+    // 实现Angerable接口的方法
+    
+    @Override
+    public int getAngerTime() {
+        return this.dataTracker.get(ANGER_TIME);
+    }
+
+    @Override
+    public void setAngerTime(int ticks) {
+        this.dataTracker.set(ANGER_TIME, ticks);
+    }
+
+    @Override
+    @Nullable
+    public UUID getAngryAt() {
+        return this.targetUuid;
+    }
+
+    @Override
+    public void setAngryAt(@Nullable UUID uuid) {
+        this.targetUuid = uuid;
+    }
+
+    @Override
+    public void chooseRandomAngerTime() {
+        this.setAngerTime(ANGER_TIME_RANGE.get(this.getRandom()));
+    }
+    
+    @Override
+    public void setTarget(@Nullable LivingEntity target) {
+        super.setTarget(target);
+        this.attackTarget = target;
     }
     
     /**
@@ -177,7 +271,7 @@ public class PlantSpirit extends HostileEntity implements GeoEntity {
     @Override
     protected void dropLoot(DamageSource source, boolean causedByPlayer) {
         super.dropLoot(source, causedByPlayer);
-        // 死亡时掉落一个钻石
+        // 死亡时掉落一个自然精华
         this.dropItem(ItemRegistry.NATURAL_ESSENCE);
     }
 } 
