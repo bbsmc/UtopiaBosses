@@ -108,6 +108,12 @@ public class SunflowerArmorItem extends ArmorItem implements GeoItem {
     }
 
     @Override
+    public boolean canRepair(ItemStack stack, ItemStack ingredient) {
+        // 可以使用光籽结晶进行修复
+        return ingredient.isOf(lt.utopiabosses.registry.ItemRegistry.LIGHT_SEED_CRYSTAL);
+    }
+
+    @Override
     public AnimatableInstanceCache getAnimatableInstanceCache() {
         return this.cache;
     }

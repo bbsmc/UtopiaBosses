@@ -32,6 +32,7 @@ import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.Util;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
@@ -258,15 +259,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     heal(10.0F);
                     vinesHealTicks = 0;
                     
-                    // 播放回血音效和粒子效果
-                    this.getWorld().playSound(
-                        null, 
-                        this.getX(), this.getY(), this.getZ(),
-                        SoundEvents.ENTITY_PLAYER_LEVELUP,
-                        SoundCategory.HOSTILE, 
-                        0.5F, 
-                        1.5F
-                    );
                 }
             }
             
@@ -285,15 +277,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                             // 造成3颗心（6点）伤害
                             player.damage(this.getDamageSources().mobAttack(this), 6.0F);
                             
-                            // 播放伤害音效
-                            this.getWorld().playSound(
-                                null, 
-                                player.getX(), player.getY(), player.getZ(),
-                                SoundEvents.BLOCK_SWEET_BERRY_BUSH_PICK_BERRIES,
-                                SoundCategory.HOSTILE, 
-                                1.0F, 
-                                0.8F
-                            );
+
                         }
                     }
                     vinesDamageTicks = 0;
@@ -670,25 +654,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 }
             }
             
-            // 播放地面震动音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundEvents.ENTITY_GENERIC_EXPLODE,
-                SoundCategory.HOSTILE, 
-                1.5F, 
-                0.6F
-            );
-            
-            // 播放震动音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundEvents.BLOCK_STONE_BREAK,
-                SoundCategory.BLOCKS, 
-                2.0F, 
-                0.5F
-            );
         }
     }
     
@@ -726,15 +691,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     // 抓取玩家
                     this.grabbedPlayer = targetPlayer;
                     
-                    // 播放抓取音效
-                    this.getWorld().playSound(
-                        null, 
-                        this.getX(), this.getY(), this.getZ(),
-                        SoundEvents.ENTITY_IRON_GOLEM_ATTACK,
-                        SoundCategory.HOSTILE, 
-                        1.0F, 
-                        0.8F
-                    );
+                    
                 }
             }
         }
@@ -821,15 +778,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             // 设置玩家为被投掷状态（用于检测落地伤害）
             markPlayerAsThrown(grabbedPlayer);
             
-            // 播放投掷音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundEvents.ENTITY_WITCH_THROW,
-                SoundCategory.HOSTILE, 
-                1.5F, 
-                0.8F
-            );
+
             
             // 如果是服务器玩家，同步速度
             if (grabbedPlayer instanceof ServerPlayerEntity) {
@@ -872,15 +821,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                         player.damage(player.getDamageSources().fall(), 8.0F);
                         hasHitGround = true;
                         
-                        // 播放撞击音效
-                        player.getWorld().playSound(
-                            null, 
-                            player.getX(), player.getY(), player.getZ(),
-                            SoundEvents.ENTITY_GENERIC_BIG_FALL,
-                            SoundCategory.PLAYERS, 
-                            1.0F, 
-                            1.0F
-                        );
+                        
                         
                         return;
                     }
@@ -909,16 +850,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             
             // 重置攻击状态
             this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
-            
-            // 播放准备音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundEvents.ENTITY_EVOKER_PREPARE_ATTACK,
-                SoundCategory.HOSTILE, 
-                1.0F, 
-                0.6F
-            );
+
         }
     }
     
@@ -939,15 +871,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             // 重置攻击状态
             this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
             
-            // 播放准备音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundEvents.ENTITY_RAVAGER_ROAR,
-                SoundCategory.HOSTILE, 
-                1.0F, 
-                0.8F
-            );
+
         }
     }
     
@@ -974,15 +898,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             // 重置攻击状态
             this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
             
-            // 播放准备音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundEvents.ENTITY_EVOKER_PREPARE_SUMMON,
-                SoundCategory.HOSTILE, 
-                1.0F, 
-                0.6F
-            );
+
         }
     }
     
@@ -1003,15 +919,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             // 重置攻击状态
             this.dataTracker.set(ATTACK_TYPE, (byte)AttackType.NONE.ordinal());
             
-            // 播放准备音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundEvents.ENTITY_RAVAGER_ROAR,
-                SoundCategory.HOSTILE, 
-                1.2F, 
-                0.5F
-            );
+
         }
     }
     
@@ -1127,41 +1035,91 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             .setSoundKeyframeHandler(event -> {
                 // 处理声音关键帧
                 try {
-                    if (event.getKeyframeData().getSound().equals("tree_run")) {
+                    if (event.getKeyframeData().getSound().equals("skill_stomping_feet")) {
                         // 使用ClientPlayer播放声音
                         MinecraftClient.getInstance().getSoundManager().play(
                             PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN, 
+                                SoundRegistry.ENTITY_TREEBOSS_STOMPING_FEET, 
                                 1.0F,  // 音调
                                 1.0F   // 增大音量
                             )
                         );
                     }
-                    else if (event.getKeyframeData().getSound().equals("tree_attack")) {
+                    else if (event.getKeyframeData().getSound().equals("skill_grab_with_the_left_hand")) {
                         // 使用ClientPlayer播放声音
                         MinecraftClient.getInstance().getSoundManager().play(
                             PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_TREE_ATTACK,
+                                SoundRegistry.ENTITY_TREEBOSS_GRAB_WITH_THE_LEFT_HAND,
                                 1.0F,  // 音调
                                 1.0F   // 增大音量
                             )
                         );
                     }
-                    else if (event.getKeyframeData().getSound().equals("r_1")) {
+                    else if (event.getKeyframeData().getSound().equals("skill_insert_both_arms_into_the_ground_surface")) {
                         // 使用ClientPlayer播放声音
                         MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_RIGHT_ASTTACK,
+                            PositionedSoundInstance.master( 
+                                SoundRegistry.ENTITY_TREEBOSS_INSERT_BOTH_ARMS_INTO_THE_GROUND_SURFACE,
                                 1.0F,  // 音调
                                 1.0F   // 增大音量
                             )
                         );
                     }
-                    else if (event.getKeyframeData().getSound().equals("l_1")) {
+                    else if (event.getKeyframeData().getSound().equals("skill_roar_towards_the_sky")) {
                         // 使用ClientPlayer播放声音
                         MinecraftClient.getInstance().getSoundManager().play(
                             PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_LEFT_ASTTACK,
+                                SoundRegistry.ENTITY_TREEBOSS_ROAR_TOWARDS_THE_SKY,
+                                1.0F,  // 音调
+                                1.0F   // 增大音量
+                            )
+                        );
+                    }
+                    else if (event.getKeyframeData().getSound().equals("tree_run")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                            PositionedSoundInstance.master(
+                                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
+                                1.0F,  // 音调
+                                1.0F   // 增大音量
+                            )
+                        );
+                    }
+                    else if (event.getKeyframeData().getSound().equals("tree_run2")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                            PositionedSoundInstance.master(
+                                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN2,
+                                1.0F,  // 音调
+                                1.0F   // 增大音量
+                            )
+                        );
+                    }
+                    else if (event.getKeyframeData().getSound().equals("attack_left")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                            PositionedSoundInstance.master(
+                                SoundRegistry.ENTITY_TREEBOSS_ATTACK_LEFT,
+                                1.0F,  // 音调
+                                1.0F   // 增大音量
+                            )
+                        );
+                    }
+                    else if (event.getKeyframeData().getSound().equals("attack_right")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                            PositionedSoundInstance.master(
+                                SoundRegistry.ENTITY_TREEBOSS_ATTACK_RIGHT,
+                                1.0F,  // 音调
+                                1.0F   // 增大音量
+                            )
+                        );
+                    }
+                    else if (event.getKeyframeData().getSound().equals("die")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                            PositionedSoundInstance.master(
+                                SoundRegistry.ENTITY_TREEBOSS_DIE,
                                 1.0F,  // 音调
                                 1.0F   // 增大音量
                             )
@@ -1282,7 +1240,28 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         // 设置生命值为1而不是0，防止触发原版死亡效果
         this.setHealth(1.0F);
         
+        // 掉落自定义物品
+        this.dropCustomLoot(source);
+        
         // 不要调用onRemoved()，它会立即清理血条
+    }
+    
+    /**
+     * 自定义掉落逻辑 - 使用战利品表
+     */
+    private void dropCustomLoot(net.minecraft.entity.damage.DamageSource source) {
+        if (!this.getWorld().isClient()) {
+            // 使用战利品表进行掉落
+            this.dropLoot(source, true);
+            
+            // 掉落经验
+            this.dropXp();
+        }
+    }
+    
+    @Override
+    public net.minecraft.util.Identifier getLootTableId() {
+        return new net.minecraft.util.Identifier("utopiabosses", "entities/tree_boss");
     }
     
     // 覆盖移除方法
@@ -1419,15 +1398,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             snaredPlayers.clear();
             slowedPlayers.clear();
             
-            // 播放藤曼生成音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundEvents.BLOCK_GRASS_BREAK,
-                SoundCategory.HOSTILE, 
-                2.0F, 
-                0.6F
-            );
+
             
             // 生成藤曼粒子效果
             spawnVinesParticles();
@@ -1460,15 +1431,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             snaredPlayers.clear();
             slowedPlayers.clear();
             
-            // 播放藤曼消失音效
-            this.getWorld().playSound(
-                null, 
-                this.getX(), this.getY(), this.getZ(),
-                SoundEvents.BLOCK_GRASS_PLACE,
-                SoundCategory.HOSTILE, 
-                1.5F, 
-                0.7F
-            );
+
         }
     }
     
@@ -1487,15 +1450,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     applySnareEffect(player);
                     snaredPlayers.add(player);
                     
-                    // 播放禁锢音效
-                    this.getWorld().playSound(
-                        null, 
-                        player.getX(), player.getY(), player.getZ(),
-                        SoundEvents.BLOCK_VINE_BREAK,
-                        SoundCategory.HOSTILE, 
-                        1.0F, 
-                        0.5F
-                    );
+
                 }
             }
         }
@@ -1692,15 +1647,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 );
             }
             
-            // 播放召唤音效
-            this.getWorld().playSound(
-                null,
-                this.getX(), this.getY(), this.getZ(),
-                SoundEvents.ENTITY_EVOKER_CAST_SPELL,
-                SoundCategory.HOSTILE,
-                1.5F,
-                0.8F
-            );
+
         }
     }
 

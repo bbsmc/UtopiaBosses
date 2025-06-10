@@ -15,18 +15,30 @@
   "item.utopiabosses.sunflower_shield": "向日葵盾",
   
   "item.utopiabosses.sunflower_boss_spawn_egg": "向日葵BOSS生成蛋",
-  "entity.utopiabosses.sunflower_boss": "向日葵BOSS",
-  "entity.utopiabosses.sunflower_seed": "向日葵种子",
-  
-  "entity.utopiabosses.plant_spirit": "植物精灵",
+  "item.utopiabosses.tree_boss_spawn_egg": "树灵BOSS生成蛋", 
   "item.utopiabosses.plant_spirit_spawn_egg": "植物精灵生成蛋",
+  "item.utopiabosses.little_tree_man_spawn_egg": "小树人生成蛋",
+  
+  "entity.utopiabosses.sunflower_boss": "向日葵BOSS",
+  "entity.utopiabosses.tree_boss": "树灵BOSS",
+  "entity.utopiabosses.plant_spirit": "植物精灵", 
+  "entity.utopiabosses.little_tree_man": "小树人",
+  "entity.utopiabosses.sunflower_seed": "向日葵种子",
 
   "item.utopiabosses.natural_essence": "自然精华",
   "item.utopiabosses.light_seed_crystal": "光籽结晶",
   "item.utopiabosses.sunflower_seed": "葵花籽",
   "item.utopiabosses.cooked_sunflower_seed": "熟葵花籽",
   "item.utopiabosses.sunflower_natural_essence": "向日葵自然精华",
+  "item.utopiabosses.tree_spirit_crystal": "树灵结晶",
+  "item.utopiabosses.tree_spirit_essence": "树灵精华",
   "block.utopiabosses.nature_altar": "自然祭坛",
+  "block.utopiabosses.sun": "太阳",
+  
+  "item.utopiabosses.tree_helmet": "树灵头盔",
+  "item.utopiabosses.tree_chestplate": "树灵胸甲",
+  "item.utopiabosses.tree_leggings": "树灵护腿",
+  "item.utopiabosses.tree_boots": "树灵靴子",
   
   "item.utopiabosses.tree_spirit_staff": "树灵之杖",
   "item.utopiabosses.tree_spirit_staff.tooltip1": "左键：吸取生命",
@@ -40,8 +52,14 @@
   "subtitles.entity.utopiabosses.sunflower.sun_xishou": "向日葵：激光-太阳回血",
 
   
-  "subtitles.entity.utopiabosses.treeboss.l_1": "树BOSS：左攻击",
-  "subtitles.entity.utopiabosses.treeboss.r_1": "树BOSS：右攻击",
-  "subtitles.entity.utopiabosses.treeboss.tree_attack": "树BOSS：树攻击",
-  "subtitles.entity.utopiabosses.treeboss.tree_run": "树BOSS：树跑"
+  "subtitles.entity.treeboss.l_1": "树灵之王：左攻击",
+  "subtitles.entity.treeboss.r_1": "树灵之王：右攻击",
+  "subtitles.entity.treeboss.tree_attack": "树灵之王：树攻击",
+  "subtitles.entity.treeboss.tree_run": "树灵之王：树跑",
+
+  "subtitles.entity.utopiabosses.sunflower_boss.ambient": "向日葵BOSS：低语",
+  "subtitles.entity.utopiabosses.sunflower_boss.hurt": "向日葵BOSS：受伤",
+  "subtitles.entity.utopiabosses.sunflower_boss.death": "向日葵BOSS：死亡",
+  "subtitles.entity.utopiabosses.sunflower_boss.attack": "向日葵BOSS：攻击",
+  "subtitles.block.utopiabosses.nature_altar.activate": "自然祭坛：激活"
 }

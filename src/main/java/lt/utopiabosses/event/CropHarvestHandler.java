@@ -63,10 +63,10 @@ public class CropHarvestHandler {
             return state.get(StemBlock.AGE) >= 7;
         }
         
-        // 检查甘蔗、仙人掌等
-        if (block instanceof SugarCaneBlock || block instanceof CactusBlock) {
-            return true; // 这些作物没有成熟状态，所以总是返回true
-        }
+//        // 检查甘蔗、仙人掌等
+//        if (block instanceof SugarCaneBlock || block instanceof CactusBlock) {
+//            return true; // 这些作物没有成熟状态，所以总是返回true
+//        }
         
         return false;
     }

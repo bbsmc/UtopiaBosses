@@ -20,6 +20,7 @@ import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.TimeHelper;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.intprovider.UniformIntProvider;
@@ -269,9 +270,7 @@ public class PlantSpirit extends PathAwareEntity implements GeoEntity, Angerable
     }
     
     @Override
-    protected void dropLoot(DamageSource source, boolean causedByPlayer) {
-        super.dropLoot(source, causedByPlayer);
-        // 死亡时掉落一个自然精华
-        this.dropItem(ItemRegistry.NATURAL_ESSENCE);
+    public Identifier getLootTableId() {
+        return new Identifier("utopiabosses", "entities/plant_spirit");
     }
 } 

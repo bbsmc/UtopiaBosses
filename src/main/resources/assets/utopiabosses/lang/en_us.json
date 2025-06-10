@@ -14,8 +14,22 @@
   "item.utopiabosses.sunflower_sword": "Sunflower Sword",
   "item.utopiabosses.sunflower_shield": "Sunflower Shield",
   
+  "item.utopiabosses.tree_helmet": "Tree Helmet",
+  "item.utopiabosses.tree_chestplate": "Tree Chestplate", 
+  "item.utopiabosses.tree_leggings": "Tree Leggings",
+  "item.utopiabosses.tree_boots": "Tree Boots",
+  
+  "item.utopiabosses.tree_spirit_staff": "Tree Spirit Staff",
+  
   "item.utopiabosses.sunflower_boss_spawn_egg": "Sunflower Boss Spawn Egg",
+  "item.utopiabosses.tree_boss_spawn_egg": "Tree Boss Spawn Egg", 
+  "item.utopiabosses.plant_spirit_spawn_egg": "Plant Spirit Spawn Egg",
+  "item.utopiabosses.little_tree_man_spawn_egg": "Little Tree Man Spawn Egg",
+  
   "entity.utopiabosses.sunflower_boss": "Sunflower Boss",
+  "entity.utopiabosses.tree_boss": "Tree Boss",
+  "entity.utopiabosses.plant_spirit": "Plant Spirit",
+  "entity.utopiabosses.little_tree_man": "Little Tree Man",
   "entity.utopiabosses.sunflower_seed": "Sunflower Seed",
   
   "item.utopiabosses.natural_essence": "Natural Essence",
@@ -23,25 +37,9 @@
   "item.utopiabosses.sunflower_seed": "Sunflower Seed",
   "item.utopiabosses.cooked_sunflower_seed": "Cooked Sunflower Seed",
   "item.utopiabosses.sunflower_natural_essence": "Sunflower Natural Essence",
+  "item.utopiabosses.tree_spirit_crystal": "Tree Spirit Crystal",
+  "item.utopiabosses.tree_spirit_essence": "Tree Spirit Essence",
+  
   "block.utopiabosses.nature_altar": "Nature Altar",
-
-  "item.utopiabosses.tree_spirit_staff": "Tree Spirit Staff",
-  "item.utopiabosses.tree_spirit_staff.tooltip1": "Left-click: Absorb Life",
-  "item.utopiabosses.tree_spirit_staff.tooltip2": "Right-click: Speed up plant growth",
-  
-  "entity.utopiabosses.plant_spirit": "Plant Spirit",
-  "item.utopiabosses.plant_spirit_spawn_egg": "Plant Spirit Spawn Egg",
-  
-  "subtitles.entity.utopiabosses.sunflower_boss.ambient": "Sunflower Boss: Whispering",
-  "subtitles.entity.utopiabosses.sunflower_boss.hurt": "Sunflower Boss: Hurt",
-  "subtitles.entity.utopiabosses.sunflower_boss.death": "Sunflower Boss: Death",
-  "subtitles.entity.utopiabosses.sunflower_boss.attack": "Sunflower Boss: Attack",
-  "subtitles.block.utopiabosses.nature_altar.activate": "Nature Altar: Activate",
-  "subtitles.item.gatling.fire": "Gatling: Fire",
-
-  "subtitles.entity.treeboss.l_1": "Tree Boss: Left Attack",
-  "subtitles.entity.treeboss.r_1": "Tree Boss: Right Attack",
-  "subtitles.entity.treeboss.tree_attack": "Tree Boss: Tree Attack",
-  "subtitles.entity.treeboss.tree_run": "Tree Boss: Tree Run"
-
+  "block.utopiabosses.sun": "Sun"
 } 

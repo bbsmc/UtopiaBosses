@@ -18,6 +18,7 @@ import java.util.Random;
 
 public class NatureAltarBlockEntity extends BlockEntity {
     private boolean hasEssence = false;
+    private int essenceType = 0; // 0=无精华, 1=向日葵精华, 2=树灵精华
     private float itemRotation = 0.0F;
     private static final float ROTATION_SPEED = 2.0F;
     private static final float FLOAT_AMPLITUDE = 0.15F;
@@ -46,8 +47,23 @@ public class NatureAltarBlockEntity extends BlockEntity {
         markDirty();
     }
     
+    public int getEssenceType() {
+        return essenceType;
+    }
+    
+    public void setEssenceType(int essenceType) {
+        this.essenceType = essenceType;
+        markDirty();
+    }
+    
     public ItemStack getDisplayItem() {
-        return hasEssence ? new ItemStack(ItemRegistry.SUNFLOWER_NATURAL_ESSENCE) : ItemStack.EMPTY;
+        if (!hasEssence) return ItemStack.EMPTY;
+        
+        return switch (essenceType) {
+            case 1 -> new ItemStack(ItemRegistry.SUNFLOWER_NATURAL_ESSENCE);
+            case 2 -> new ItemStack(ItemRegistry.TREE_SPIRIT_ESSENCE);
+            default -> ItemStack.EMPTY;
+        };
     }
     
     // 用于浮动和旋转动画的静态方法
@@ -99,12 +115,14 @@ public class NatureAltarBlockEntity extends BlockEntity {
     protected void writeNbt(NbtCompound nbt) {
         super.writeNbt(nbt);
         nbt.putBoolean("HasEssence", hasEssence);
+        nbt.putInt("EssenceType", essenceType);
     }
     
     @Override
     public void readNbt(NbtCompound nbt) {
         super.readNbt(nbt);
         hasEssence = nbt.getBoolean("HasEssence");
+        essenceType = nbt.getInt("EssenceType");
     }
     
     @Override

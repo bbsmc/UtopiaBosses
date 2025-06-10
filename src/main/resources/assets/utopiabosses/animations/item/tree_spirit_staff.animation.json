@@ -1,7 +1,7 @@
 {
 	"format_version": "1.8.0",
 	"animations": {
-		"rotate": {
+		"rotation": {
 			"loop": true,
 			"animation_length": 2,
 			"bones": {
@@ -18,12 +18,21 @@
 						"0.0": {
 							"vector": [0, 0, 0]
 						},
+						"0.5": {
+							"vector": [0, 0.3, 0]
+						},
 						"1.0": {
-							"vector": [0, 1, 0]
+							"vector": [0, 0, 0]
+						},
+						"1.5": {
+							"vector": [0, 0.3, 0]
 						},
 						"2.0": {
 							"vector": [0, 0, 0]
 						}
+					},
+					"scale": {
+						"vector": [1, 1, 1]
 					}
 				}
 			}

@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:entity",
+  "pools": [
+    {
+      "name": "main_loot",
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "utopiabosses:tree_spirit_staff",
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "name": "tree_crystals",
+      "rolls": {
+        "min": 6,
+        "max": 9
+      },
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "utopiabosses:tree_spirit_crystal",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+} 

@@ -55,33 +55,13 @@ import java.util.function.Supplier;
 
 public class TreeSpiritStaffItem extends Item implements GeoItem {
     private static final String CONTROLLER_NAME = "rotateController";
-    private static final RawAnimation ROTATE_ANIM = RawAnimation.begin().thenLoop("rotate");
-    private static final int LIFE_DRAIN_RANGE = 10;
-    private static final int LIFE_DRAIN_DAMAGE = 2; // 一颗心 = 2点生命值
-    private static final int LIFE_DRAIN_COOLDOWN = 20; // 1秒
-    private final Map<UUID, LifeDrainData> drainTargets = new HashMap<>();
+    private static final RawAnimation ROTATE_ANIM = RawAnimation.begin().thenLoop("rotation");
+    // 树灵之杖现在只用于催熟农作物，不再有吸血功能
     
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
     
-    // 生命吸取数据
-    private static class LifeDrainData {
-        private int cooldown = 0;
-        
-        public void decrementCooldown() {
-            if (cooldown > 0) {
-                cooldown--;
-            }
-        }
-        
-        public void resetCooldown() {
-            cooldown = LIFE_DRAIN_COOLDOWN;
-        }
-        
-        public int getCooldown() {
-            return cooldown;
-        }
-    }
+    // 树灵之杖现在只有催熟功能，不再需要生命吸取数据
 
     public TreeSpiritStaffItem(Settings settings) {
         super(settings);
@@ -124,9 +104,9 @@ public class TreeSpiritStaffItem extends Item implements GeoItem {
     
     @Override
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
-        tooltip.add(Text.translatable("item.utopiabosses.tree_spirit_staff.tooltip1")
-                .formatted(Formatting.GREEN));
-        tooltip.add(Text.translatable("item.utopiabosses.tree_spirit_staff.tooltip2")
+        tooltip.add(Text.literal("无限耐久")
+                .formatted(Formatting.GOLD));
+        tooltip.add(Text.literal("右键方块：催熟3x3区域的农作物")
                 .formatted(Formatting.GREEN));
     }
 
@@ -134,121 +114,55 @@ public class TreeSpiritStaffItem extends Item implements GeoItem {
     public ActionResult useOnBlock(ItemUsageContext context) {
         World world = context.getWorld();
         BlockPos blockPos = context.getBlockPos();
-        BlockState blockState = world.getBlockState(blockPos);
-        
-        if (blockState.getBlock() instanceof Fertilizable fertilizable) {
-            // 如果是可以施肥的方块
-            PlayerEntity player = context.getPlayer();
-            if (player == null) return ActionResult.PASS;
-            
-            if (fertilizable.isFertilizable(world, blockPos, blockState, world.isClient)) {
-                if (world.isClient) {
-                    return ActionResult.SUCCESS;
-                }
+        PlayerEntity player = context.getPlayer();
+
+        if (world.isClient || player == null) {
+            return ActionResult.SUCCESS;
+        }
+
+        // 催熟3x3区域的农作物
+        boolean didSomething = false;
+        for (int x = -1; x <= 1; x++) {
+            for (int z = -1; z <= 1; z++) {
+                BlockPos targetPos = blockPos.add(x, 0, z);
+                BlockState state = world.getBlockState(targetPos);
                 
-                if (fertilizable.canGrow(world, world.random, blockPos, blockState)) {
-                    // 催熟植物
-                    fertilizable.grow((ServerWorld) world, world.random, blockPos, blockState);
-                    
-                    // 播放音效和粒子
-                    world.playSound(null, blockPos, SoundEvents.ITEM_BONE_MEAL_USE, SoundCategory.BLOCKS, 1.0f, 1.0f);
-                    
-                    // 显示骨粉粒子
-                    ServerWorld serverWorld = (ServerWorld) world;
-                    serverWorld.spawnParticles(ParticleTypes.HAPPY_VILLAGER, 
-                            blockPos.getX() + 0.5, blockPos.getY() + 0.5, blockPos.getZ() + 0.5, 
-                            10, 0.5, 0.5, 0.5, 0.0);
-                    
-                    // 减少耐久度
-                    ItemStack stack = context.getStack();
-                    if (player != null && !player.getAbilities().creativeMode) {
-                        stack.damage(1, player, p -> p.sendToolBreakStatus(context.getHand()));
+                // 检查是否是可催熟的方块
+                if (state.getBlock() instanceof Fertilizable fertilizable) {
+                    if (fertilizable.isFertilizable(world, targetPos, state, false)) {
+                        if (fertilizable.canGrow(world, world.random, targetPos, state)) {
+                            // 催熟植物
+                            fertilizable.grow((ServerWorld) world, world.random, targetPos, state);
+                            didSomething = true;
+                            
+                            // 生成粒子效果
+                            ((ServerWorld) world).spawnParticles(ParticleTypes.HAPPY_VILLAGER, 
+                                targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5, 
+                                5, 0.3, 0.3, 0.3, 0.1);
+                        }
                     }
-                    
-                    return ActionResult.SUCCESS;
                 }
             }
         }
         
+        if (didSomething) {
+            // 播放音效
+            world.playSound(null, blockPos, SoundEvents.ITEM_BONE_MEAL_USE, SoundCategory.BLOCKS, 1.0F, 1.0F);
+            return ActionResult.SUCCESS;
+        }
+
         return ActionResult.PASS;
     }
     
     @Override
     public boolean postHit(ItemStack stack, LivingEntity target, LivingEntity attacker) {
-        if (attacker instanceof PlayerEntity player && !attacker.getWorld().isClient) {
-            // 开始生命吸取
-            drainTargets.put(target.getUuid(), new LifeDrainData());
-            
-            // 播放特效
-            player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
-                    SoundEvents.ENTITY_WITCH_AMBIENT, SoundCategory.PLAYERS, 0.5f, 1.0f);
-            
-            // 如果物品有耐久度，点击减少耐久
-            if (!player.getAbilities().creativeMode) {
-                stack.damage(1, player, p -> p.sendToolBreakStatus(Hand.MAIN_HAND));
-            }
-        }
+        // 树灵之杖现在无限耐久，不再有吸血效果
         return true;
     }
     
     @Override
     public void inventoryTick(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
-        if (world.isClient || !(entity instanceof PlayerEntity player)) {
-            return;
-        }
-
-        // 处理生命吸取效果
-        if (!drainTargets.isEmpty()) {
-            Iterator<Map.Entry<UUID, LifeDrainData>> iterator = drainTargets.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<UUID, LifeDrainData> entry = iterator.next();
-                LifeDrainData data = entry.getValue();
-                
-                // 更新计时器
-                data.decrementCooldown();
-                
-                if (data.getCooldown() <= 0) {
-                    Entity targetEntity = ((ServerWorld) world).getEntity(entry.getKey());
-                    if (targetEntity instanceof LivingEntity target && !target.isDead() && 
-                            player.squaredDistanceTo(target) <= LIFE_DRAIN_RANGE * LIFE_DRAIN_RANGE) {
-                        
-                        // 造成伤害并恢复生命
-                        target.damage(world.getDamageSources().playerAttack(player), LIFE_DRAIN_DAMAGE);
-                        player.heal(LIFE_DRAIN_DAMAGE);
-                        
-                        // 播放特效
-                        Vec3d playerPos = player.getEyePos();
-                        Vec3d targetPos = target.getEyePos();
-                        
-                        // 在目标和玩家之间创建粒子线
-                        double distance = playerPos.distanceTo(targetPos);
-                        Vec3d direction = targetPos.subtract(playerPos).normalize();
-                        for (double d = 0.5; d < distance; d += 0.5) {
-                            Vec3d particlePos = playerPos.add(direction.multiply(d));
-                            ((ServerWorld) world).spawnParticles(
-                                    ParticleTypes.WITCH,
-                                    particlePos.x, particlePos.y, particlePos.z,
-                                    1, 0.0, 0.0, 0.0, 0.0);
-                        }
-                        
-                        // 播放音效
-                        world.playSound(null, player.getX(), player.getY(), player.getZ(),
-                                SoundEvents.ENTITY_WITCH_DRINK, SoundCategory.PLAYERS, 0.5f, 1.0f);
-                        
-                        // 重置冷却时间
-                        data.resetCooldown();
-                    } else {
-                        // 目标无效，移除
-                        iterator.remove();
-                    }
-                }
-            }
-            
-            // 如果物品有耐久度，每次吸取生命减少耐久
-            if (!player.getAbilities().creativeMode && player.getRandom().nextFloat() < 0.01f) {
-                stack.damage(1, player, p -> p.sendToolBreakStatus(Hand.MAIN_HAND));
-            }
-        }
+        // 树灵之杖现在无限耐久，不再有吸血效果，无需处理任何特殊逻辑
     }
     
     @Override
@@ -257,9 +171,15 @@ public class TreeSpiritStaffItem extends Item implements GeoItem {
         return TypedActionResult.pass(user.getStackInHand(hand));
     }
     
-    // 允许使用任何树木相关的物品修复
+    // 树灵之杖无限耐久，不需要修复
     @Override
     public boolean canRepair(ItemStack stack, ItemStack ingredient) {
-        return ingredient.isIn(ItemTags.LOGS) || ingredient.isIn(ItemTags.LEAVES);
+        return false;
+    }
+
+    @Override
+    public boolean isDamageable() {
+        // 树灵之杖无限耐久
+        return false;
     }
 } 

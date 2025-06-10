@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:entity",
+  "pools": [
+    {
+      "name": "natural_essence",
+      "rolls": {
+        "min": 1,
+        "max": 2
+      },
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "utopiabosses:natural_essence",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+} 

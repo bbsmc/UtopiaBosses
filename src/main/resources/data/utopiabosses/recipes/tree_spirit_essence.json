@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "SSS",
+    "SES",
+    "SSS"
+  ],
+  "key": {
+    "S": {
+      "tag": "minecraft:saplings"
+    },
+    "E": {
+      "item": "utopiabosses:natural_essence"
+    }
+  },
+  "result": {
+    "item": "utopiabosses:tree_spirit_essence",
+    "count": 1
+  }
+} 

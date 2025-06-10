@@ -5,58 +5,91 @@
       "utopiabosses:item/gatling/fire"
     ]
   },
-  "entity.sunflower.jin": {
-    "subtitle": "subtitles.entity.sunflower.jin",
+
+
+  "entity.sunflower.sunflower_left_attack": {
+    "subtitle": "subtitles.entity.sunflower.sunflower_left_attack",
     "sounds": [
-      "utopiabosses:entity/sunflower/jin"
+      "utopiabosses:entity/sunflower/sunflower_left_attack"
     ]
   },
-  "entity.sunflower.yuan": {
-    "subtitle": "subtitles.entity.sunflower.yuan",
+  "entity.sunflower.sunflower_right_attack": {
+    "subtitle": "subtitles.entity.sunflower.sunflower_right_attack",
     "sounds": [
-      "utopiabosses:entity/sunflower/yuan"
+      "utopiabosses:entity/sunflower/sunflower_right_attack"
     ]
   },
-  "entity.sunflower.dan_mu": {
-    "subtitle": "subtitles.entity.sunflower.dan_mu",
+  "entity.sunflower.laser_cannon": {
+    "subtitle": "subtitles.entity.sunflower.laser_cannon",
     "sounds": [
-      "utopiabosses:entity/sunflower/dan_mu"
+      "utopiabosses:entity/sunflower/laser_cannon"
     ]
   },
-  "entity.sunflower.sun_chuxian": {
-    "subtitle": "subtitles.entity.sunflower.sun_chuxian",
+  "entity.sunflower.shoot": {   
+    "subtitle": "subtitles.entity.sunflower.shoot",
     "sounds": [
-      "utopiabosses:entity/sunflower/sun_chuxian"
+      "utopiabosses:entity/sunflower/shoot"
     ]
   },
-  "entity.sunflower.sun_xishou": {
-    "subtitle": "subtitles.entity.sunflower.sun_xishou",
+  "entity.sunflower.flower_lade_storm": { 
+    "subtitle": "subtitles.entity.sunflower.flower_lade_storm",
     "sounds": [
-      "utopiabosses:entity/sunflower/sun_xishou"
+      "utopiabosses:entity/sunflower/flower_lade_storm"
     ]
-    },
-  "entity.treeboss.l_1": {
-    "subtitle": "subtitles.entity.treeboss.l_1",
+  },
+
+  "entity.treeboss.skill_stomping_feet": {
+    "subtitle": "subtitles.entity.treeboss.skill_stomping_feet",
     "sounds": [
-      "utopiabosses:entity/treeboss/l_1"
+      "utopiabosses:entity/treeboss/skill_stomping_feet"
     ]
-    },
-  "entity.treeboss.r_1": {
-    "subtitle": "subtitles.entity.treeboss.r_1",
+  },
+  "entity.treeboss.skill_grab_with_the_left_hand": {
+    "subtitle": "subtitles.entity.treeboss.skill_grab_with_the_left_hand",
     "sounds": [
-      "utopiabosses:entity/treeboss/r_1"
+      "utopiabosses:entity/treeboss/skill_grab_with_the_left_hand"
     ]
-    },
-  "entity.treeboss.tree_attack": {
-    "subtitle": "subtitles.entity.treeboss.tree_attack",
+  },
+  "entity.treeboss.skill_insert_both_arms_into_the_ground_surface": {
+    "subtitle": "subtitles.entity.treeboss.skill_insert_both_arms_into_the_ground_surface",
     "sounds": [
-      "utopiabosses:entity/treeboss/tree_attack"
+      "utopiabosses:entity/treeboss/skill_insert_both_arms_into_the_ground_surface"
     ]
-    },
+  },
+  "entity.treeboss.skill_roar_towards_the_sky": {
+    "subtitle": "subtitles.entity.treeboss.skill_roar_towards_the_sky",
+    "sounds": [
+      "utopiabosses:entity/treeboss/skill_roar_towards_the_sky"
+    ]
+  },
   "entity.treeboss.tree_run": {
     "subtitle": "subtitles.entity.treeboss.tree_run",
     "sounds": [
       "utopiabosses:entity/treeboss/tree_run"
+    ]
+  },
+  "entity.treeboss.tree_run2": {
+    "subtitle": "subtitles.entity.treeboss.tree_run2",
+    "sounds": [
+      "utopiabosses:entity/treeboss/tree_run2"
+    ]
+  },
+  "entity.treeboss.attack_left": {  
+    "subtitle": "subtitles.entity.treeboss.attack_left",
+    "sounds": [
+      "utopiabosses:entity/treeboss/attack_left"
+    ]
+  },
+  "entity.treeboss.attack_right": {
+    "subtitle": "subtitles.entity.treeboss.attack_right",
+    "sounds": [
+      "utopiabosses:entity/treeboss/attack_right"
+    ]
+  },
+  "entity.treeboss.die": {
+    "subtitle": "subtitles.entity.treeboss.die",
+    "sounds": [
+      "utopiabosses:entity/treeboss/die"
     ]
   }
 } 

@@ -203,7 +203,8 @@
 				}
 			}
 		},
-		"youbazhang": {
+		"sunflower_right_attack": {
+			"loop": "hold_on_last_frame",
 			"animation_length": 2,
 			"bones": {
 				"jing1": {
@@ -519,12 +520,13 @@
 				}
 			},
 			"sound_effects": {
-				"0.625": {
-					"effect": "grab"
+				"0.0": {
+					"effect": "sunflower_right_attack"
 				}
 			}
 		},
-		"zuobazhang": {
+		"sunflower_left_attack": {
+			"loop": "hold_on_last_frame",
 			"animation_length": 2,
 			"bones": {
 				"jing1": {
@@ -852,12 +854,13 @@
 				}
 			},
 			"sound_effects": {
-				"0.9167": {
-					"effect": "grab"
+				"0.0": {
+					"effect": "sunflower_left_attack"
 				}
 			}
 		},
-		"banxue": {
+		"flower_lade_storm": {
+			"loop": "hold_on_last_frame",
 			"animation_length": 4,
 			"bones": {
 				"jing1": {
@@ -1953,9 +1956,14 @@
 						"vector": [0, 0, 0]
 					}
 				}
+			},
+			"sound_effects": {
+				"0.0": {
+					"effect": "flower_lade_storm"
+				}
 			}
 		},
-		"jiguangpao2": {
+		"laser_cannon": {
 			"loop": "hold_on_last_frame",
 			"animation_length": 8,
 			"bones": {
@@ -4984,49 +4992,15 @@
 							"lerp_mode": "catmullrom"
 						}
 					}
-				},
-				"liz": {
-					"position": {
-						"vector": [-2, 2.98391, -70.28582]
-					}
 				}
 			},
-			"particle_effects": {
-				"5.0": {
-					"effect": "particles",
-					"locator": "locator2"
-				},
-				"5.125": {
-					"effect": "particles",
-					"locator": "locator2"
-				},
-				"5.25": {
-					"effect": "particles",
-					"locator": "locator2"
-				},
-				"5.375": {
-					"effect": "particles",
-					"locator": "locator2"
-				},
-				"5.5": {
-					"effect": "particles",
-					"locator": "locator2"
-				},
-				"5.625": {
-					"effect": "particles",
-					"locator": "locator2"
-				},
-				"5.75": {
-					"effect": "particles",
-					"locator": "locator2"
-				},
-				"5.875": {
-					"effect": "particles",
-					"locator": "locator2"
+			"sound_effects": {
+				"0.0": {
+					"effect": "laser_cannon"
 				}
 			}
 		},
-		"kuwei2": {
+		"sunflower_dies": {
 			"loop": "hold_on_last_frame",
 			"animation_length": 7.375,
 			"bones": {

@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CCC",
+    "C C",
+    "   "
+  ],
+  "key": {
+    "C": {
+      "item": "utopiabosses:light_seed_crystal"
+    }
+  },
+  "result": {
+    "item": "utopiabosses:sunflower_helmet",
+    "count": 1
+  }
+}

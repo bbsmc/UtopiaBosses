@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "   ",
+    "C C",
+    "C C"
+  ],
+  "key": {
+    "C": {
+      "item": "utopiabosses:tree_spirit_crystal"
+    }
+  },
+  "result": {
+    "item": "utopiabosses:tree_boots",
+    "count": 1
+  }
+} 

@@ -41,9 +41,14 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.client.item.TooltipContext;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.List;
 
 /**
  * 向日葵加特林枪 - 基于AzureAnimatedGunItem实现
@@ -125,32 +130,57 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
     public void fireWeapon(ItemStack stack, World world, LivingEntity user) {
         if (!(world instanceof ServerWorld serverWorld)) return;
         
-        // 检查耐久度并发射
-        if (stack.getDamage() < stack.getMaxDamage() - 1) {
+        // 检查玩家背包是否有葵花籽
+        if (user instanceof PlayerEntity player) {
+            ItemStack sunflowerSeedStack = findSunflowerSeeds(player);
+            if (sunflowerSeedStack.isEmpty()) {
+                // 没有葵花籽，播放失败音效
+                world.playSound(null, user.getX(), user.getY(), user.getZ(),
+                        SoundEvents.BLOCK_DISPENSER_FAIL, SoundCategory.PLAYERS, 0.25F, 1.3F);
+                return;
+            }
+            
             // 创建并发射种子
             SunflowerSeedEntity projectile = createProjectile(world, user);
             world.spawnEntity(projectile);
             
             // 播放射击音效
             world.playSound(null, user.getX(), user.getY(), user.getZ(),
-                SoundRegistry.ITEM_GATLING_GUN_FIRE, SoundCategory.PLAYERS, 0.5F, 
+                SoundRegistry.ENTITY_SUNFLOWER_SHOOT, SoundCategory.PLAYERS, 0.5F,
                 0.4F / (world.getRandom().nextFloat() * 0.4F + 0.8F));
             
             // 触发射击动画
-            if (user instanceof PlayerEntity player) {
-                triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), CONTROLLER_NAME, FIRING_ANIM);
-            }
+            triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), CONTROLLER_NAME, FIRING_ANIM);
             
-            // 消耗耐久并添加冷却
-            stack.damage(1, user, p -> p.sendToolBreakStatus(user.getActiveHand()));
-            if (user instanceof PlayerEntity player) {
-                player.getItemCooldownManager().set(this, FIRE_COOLDOWN);
-            }
-        } else {
-            // 如果弹药耗尽则播放点击音效
-            world.playSound(null, user.getX(), user.getY(), user.getZ(),
-                    SoundEvents.BLOCK_DISPENSER_FAIL, SoundCategory.PLAYERS, 0.25F, 1.3F);
+            // 消耗葵花籽而不是耐久度
+            sunflowerSeedStack.decrement(1);
+            
+            // 添加冷却
+            player.getItemCooldownManager().set(this, FIRE_COOLDOWN);
         }
+    }
+    
+    /**
+     * 在玩家背包中寻找葵花籽
+     */
+    private ItemStack findSunflowerSeeds(PlayerEntity player) {
+        // 检查主手和副手
+        if (player.getMainHandStack().isOf(lt.utopiabosses.registry.ItemRegistry.SUNFLOWER_SEED)) {
+            return player.getMainHandStack();
+        }
+        if (player.getOffHandStack().isOf(lt.utopiabosses.registry.ItemRegistry.SUNFLOWER_SEED)) {
+            return player.getOffHandStack();
+        }
+        
+        // 检查背包
+        for (int i = 0; i < player.getInventory().size(); i++) {
+            ItemStack stack = player.getInventory().getStack(i);
+            if (stack.isOf(lt.utopiabosses.registry.ItemRegistry.SUNFLOWER_SEED)) {
+                return stack;
+            }
+        }
+        
+        return ItemStack.EMPTY;
     }
     
     /**
@@ -327,7 +357,24 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
 
     @Override
     public boolean canRepair(ItemStack stack, ItemStack ingredient) {
-        return ingredient.isOf(Items.SUNFLOWER);
+        // 向日葵加特林无限耐久，不需要修复
+        return false;
+    }
+
+    @Override
+    public boolean isDamageable() {
+        // 向日葵加特林无限耐久
+        return false;
+    }
+
+    @Override
+    public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
+        tooltip.add(Text.literal("无限耐久")
+                .formatted(Formatting.GOLD));
+        tooltip.add(Text.literal("右键发射：需要消耗背包中的葵花籽")
+                .formatted(Formatting.GREEN));
+        tooltip.add(Text.literal("击败向日葵BOSS掉落")
+                .formatted(Formatting.YELLOW));
     }
 
     @Override

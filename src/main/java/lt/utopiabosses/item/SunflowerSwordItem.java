@@ -183,8 +183,8 @@ public class SunflowerSwordItem extends Item implements GeoItem {
 
     @Override
     public boolean canRepair(ItemStack stack, ItemStack ingredient) {
-        // 可以使用向日葵进行修复
-        return ingredient.isOf(Items.SUNFLOWER);
+        // 可以使用光籽结晶进行修复
+        return ingredient.isOf(lt.utopiabosses.registry.ItemRegistry.LIGHT_SEED_CRYSTAL);
     }
 
 

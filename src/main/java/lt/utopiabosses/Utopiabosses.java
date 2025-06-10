@@ -1,6 +1,6 @@
 package lt.utopiabosses;
 
-import lt.utopiabosses.event.CropHarvestHandler;
+//import lt.utopiabosses.event.CropHarvestHandler;
 import lt.utopiabosses.network.NetworkHandler;
 import lt.utopiabosses.registry.BlockEntityRegistry;
 import lt.utopiabosses.registry.BlockRegistry;
@@ -44,7 +44,7 @@ public class Utopiabosses implements ModInitializer {
         NetworkHandler.registerNetworkHandlers();
         
         // 注册事件处理器
-        CropHarvestHandler.register();
+//        CropHarvestHandler.register();
         
         LOGGER.info("UtopiaBosses初始化完成");
     }

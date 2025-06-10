@@ -68,6 +68,22 @@ public class NatureAltarBlock extends HorizontalFacingBlock implements BlockEnti
                 // 更新方块状态
                 world.setBlockState(pos, state.with(HAS_ESSENCE, true));
                 blockEntity.setHasEssence(true);
+                blockEntity.setEssenceType(1); // 向日葵精华
+                
+                // 消耗物品
+                if (!player.isCreative()) {
+                    heldItem.decrement(1);
+                }
+                
+                return ActionResult.success(world.isClient);
+            }
+            
+            // 如果祭坛上没有精华，且玩家手持树灵精华
+            if (!state.get(HAS_ESSENCE) && heldItem.isOf(lt.utopiabosses.registry.ItemRegistry.TREE_SPIRIT_ESSENCE)) {
+                // 更新方块状态
+                world.setBlockState(pos, state.with(HAS_ESSENCE, true));
+                blockEntity.setHasEssence(true);
+                blockEntity.setEssenceType(2); // 树灵精华
                 
                 // 消耗物品
                 if (!player.isCreative()) {
@@ -81,19 +97,32 @@ public class NatureAltarBlock extends HorizontalFacingBlock implements BlockEnti
             if (state.get(HAS_ESSENCE) && heldItem.isOf(Items.BONE_MEAL)) {
                 // 只在服务器端执行
                 if (!world.isClient) {
-                    // 消耗方块和物品
-                    world.removeBlock(pos, false);
                     
                     if (!player.isCreative()) {
                         heldItem.decrement(1);
                     }
                     
-                    // 生成向日葵Boss
-                    EntityRegistry.SUNFLOWER_BOSS.spawn(
-                        (net.minecraft.server.world.ServerWorld)world, 
-                        pos, 
-                        net.minecraft.entity.SpawnReason.TRIGGERED
-                    );
+                    // 根据精华类型生成对应的Boss
+                    int essenceType = blockEntity.getEssenceType();
+                    if (essenceType == 1) {
+                        // 生成向日葵Boss
+                        EntityRegistry.SUNFLOWER_BOSS.spawn(
+                            (net.minecraft.server.world.ServerWorld)world, 
+                            pos, 
+                            net.minecraft.entity.SpawnReason.TRIGGERED
+                        );
+                    } else if (essenceType == 2) {
+                        // 生成树灵之王Boss
+                        EntityRegistry.TREE_BOSS.spawn(
+                            (net.minecraft.server.world.ServerWorld)world, 
+                            pos, 
+                            net.minecraft.entity.SpawnReason.TRIGGERED
+                        );
+                    }
+                    // 只消耗物品，重置祭坛状态
+                    world.setBlockState(pos, state.with(HAS_ESSENCE, false));
+                    blockEntity.setHasEssence(false);
+                    blockEntity.setEssenceType(0);
                 }
                 
                 return ActionResult.success(world.isClient);

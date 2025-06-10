@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CC ",
+    " S ",
+    " S "
+  ],
+  "key": {
+    "C": {
+      "item": "utopiabosses:light_seed_crystal"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "item": "utopiabosses:sunflower_hoe",
+    "count": 1
+  }
+} 

@@ -11,6 +11,7 @@ alwaysApply: false
 - 项目路径  lt.utopiabosses.Utopiabosses  
 - client的代码应该在 src/main/java/lt/utopiabosses/client 下
 - 客户端的代码应该在 src下的 client 模块写客户端的而不是在
+- 代码写完以后无需运行构建
 main里新建包
 - 本项目使用  "net.fabricmc:yarn:1.20.1+build.10:v2" 这是 Fabric 社区（FabricMC）维护的 Yarn 映射来开发
 - geckolib4 参考以下代码示例
