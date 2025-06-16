@@ -2,8 +2,6 @@ package lt.utopiabosses.entity;
 
 import lt.utopiabosses.registry.EntityRegistry;
 import lt.utopiabosses.registry.SoundRegistry;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -1031,102 +1029,67 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     instruction = "melee_attack_hit"; // 默认为普通攻击命中
                 }
                 handleKeyframeEvent(instruction);
-            })
-            .setSoundKeyframeHandler(event -> {
-                // 处理声音关键帧
-                try {
-                    if (event.getKeyframeData().getSound().equals("skill_stomping_feet")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
+            })            .setSoundKeyframeHandler(event -> {
+                // 处理声音关键帧 - 只在服务器端处理
+                if (!getWorld().isClient()) {
+                    try {
+                        if (event.getKeyframeData().getSound().equals("skill_stomping_feet")) {
+                            // 使用世界播放声音，会自动同步到客户端
+                            getWorld().playSound(null, getBlockPos(), 
                                 SoundRegistry.ENTITY_TREEBOSS_STOMPING_FEET, 
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
+                                getSoundCategory(), 1.0F, 1.0F);
+                        }
+                        else if (event.getKeyframeData().getSound().equals("skill_grab_with_the_left_hand")) {
+                            // 使用世界播放声音，会自动同步到客户端
+                            getWorld().playSound(null, getBlockPos(), 
+                                SoundRegistry.ENTITY_TREEBOSS_GRAB_WITH_THE_LEFT_HAND, 
+                                getSoundCategory(), 1.0F, 1.0F);
+                        }
+                        else if (event.getKeyframeData().getSound().equals("skill_insert_both_arms_into_the_ground_surface")) {
+                            // 使用世界播放声音，会自动同步到客户端
+                            getWorld().playSound(null, getBlockPos(), 
+                                SoundRegistry.ENTITY_TREEBOSS_INSERT_BOTH_ARMS_INTO_THE_GROUND_SURFACE, 
+                                getSoundCategory(), 1.0F, 1.0F);
+                        }
+                        else if (event.getKeyframeData().getSound().equals("skill_roar_towards_the_sky")) {
+                            // 使用世界播放声音，会自动同步到客户端
+                            getWorld().playSound(null, getBlockPos(), 
+                                SoundRegistry.ENTITY_TREEBOSS_ROAR_TOWARDS_THE_SKY, 
+                                getSoundCategory(), 1.0F, 1.0F);
+                        }
+                        else if (event.getKeyframeData().getSound().equals("tree_run")) {
+                            // 使用世界播放声音，会自动同步到客户端
+                            getWorld().playSound(null, getBlockPos(), 
+                                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN, 
+                                getSoundCategory(), 1.0F, 1.0F);
+                        }
+                        else if (event.getKeyframeData().getSound().equals("tree_run2")) {
+                            // 使用世界播放声音，会自动同步到客户端
+                            getWorld().playSound(null, getBlockPos(), 
+                                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN2, 
+                                getSoundCategory(), 1.0F, 1.0F);
+                        }
+                        else if (event.getKeyframeData().getSound().equals("attack_left")) {
+                            // 使用世界播放声音，会自动同步到客户端
+                            getWorld().playSound(null, getBlockPos(), 
+                                SoundRegistry.ENTITY_TREEBOSS_ATTACK_LEFT, 
+                                getSoundCategory(), 1.0F, 1.0F);
+                        }
+                        else if (event.getKeyframeData().getSound().equals("attack_right")) {
+                            // 使用世界播放声音，会自动同步到客户端
+                            getWorld().playSound(null, getBlockPos(), 
+                                SoundRegistry.ENTITY_TREEBOSS_ATTACK_RIGHT, 
+                                getSoundCategory(), 1.0F, 1.0F);
+                        }
+                        else if (event.getKeyframeData().getSound().equals("die")) {
+                            // 使用世界播放声音，会自动同步到客户端
+                            getWorld().playSound(null, getBlockPos(), 
+                                SoundRegistry.ENTITY_TREEBOSS_DIE, 
+                                getSoundCategory(), 1.0F, 1.0F);
+                        }
+                    } catch (Exception e) {
+                        System.out.println("获取声音关键帧数据失败: " + e.getMessage());
                     }
-                    else if (event.getKeyframeData().getSound().equals("skill_grab_with_the_left_hand")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_GRAB_WITH_THE_LEFT_HAND,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("skill_insert_both_arms_into_the_ground_surface")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master( 
-                                SoundRegistry.ENTITY_TREEBOSS_INSERT_BOTH_ARMS_INTO_THE_GROUND_SURFACE,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("skill_roar_towards_the_sky")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_ROAR_TOWARDS_THE_SKY,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("tree_run")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("tree_run2")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN2,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("attack_left")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_ATTACK_LEFT,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("attack_right")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_ATTACK_RIGHT,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("die")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_DIE,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                } catch (Exception e) {
-                    System.out.println("获取声音关键帧数据失败: " + e.getMessage());
                 }
             })
         );

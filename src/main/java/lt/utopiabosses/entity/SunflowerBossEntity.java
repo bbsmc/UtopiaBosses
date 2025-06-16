@@ -1,8 +1,6 @@
 package lt.utopiabosses.entity;
 
 import lt.utopiabosses.client.renderer.SunflowerBossRenderer;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.LookAtEntityGoal;
@@ -1045,36 +1043,25 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                             0, 0, 0
                         );
                     }
-                }
-            }).setSoundKeyframeHandler(event -> {
-                // 处理声音关键帧
-                if (event.getKeyframeData().getSound().equals("sunflower_right_attack")) {
-                    // 使用ClientPlayer播放声音
-                    MinecraftClient.getInstance().getSoundManager().play(
-                        PositionedSoundInstance.master(
-                            SoundRegistry.ENTITY_SUNFLOWER_RIGHT_ATTACK,
-                            1.0F,  // 音调
-                            1.0F   // 增大音量
-                        )
-                    );
-                }else if (event.getKeyframeData().getSound().equals("sunflower_left_attack")) {
-                    // 使用ClientPlayer播放声音
-                    MinecraftClient.getInstance().getSoundManager().play(
-                        PositionedSoundInstance.master(
-                            SoundRegistry.ENTITY_SUNFLOWER_LEFT_ATTACK,
-                            1.0F,  // 音调
-                            1.0F   // 增大音量
-                        )
-                    );
-                }else if (event.getKeyframeData().getSound().equals("laser_cannon")) {
-                    // 使用ClientPlayer播放声音
-                    MinecraftClient.getInstance().getSoundManager().play(
-                        PositionedSoundInstance.master(
-                            SoundRegistry.ENTITY_SUNFLOWER_LASER_CANNON,
-                            1.0F,  // 音调
-                            1.0F   // 增大音量
-                        )
-                    );
+                }            }).setSoundKeyframeHandler(event -> {
+                // 处理声音关键帧 - 只在服务器端处理
+                if (!getWorld().isClient()) {
+                    if (event.getKeyframeData().getSound().equals("sunflower_right_attack")) {
+                        // 使用世界播放声音，会自动同步到客户端
+                        getWorld().playSound(null, getBlockPos(), 
+                            SoundRegistry.ENTITY_SUNFLOWER_RIGHT_ATTACK, 
+                            getSoundCategory(), 1.0F, 1.0F);
+                    } else if (event.getKeyframeData().getSound().equals("sunflower_left_attack")) {
+                        // 使用世界播放声音，会自动同步到客户端
+                        getWorld().playSound(null, getBlockPos(), 
+                            SoundRegistry.ENTITY_SUNFLOWER_LEFT_ATTACK, 
+                            getSoundCategory(), 1.0F, 1.0F);
+                    } else if (event.getKeyframeData().getSound().equals("laser_cannon")) {
+                        // 使用世界播放声音，会自动同步到客户端
+                        getWorld().playSound(null, getBlockPos(), 
+                            SoundRegistry.ENTITY_SUNFLOWER_LASER_CANNON, 
+                            getSoundCategory(), 1.0F, 1.0F);
+                    }
                 }
             })
         );
