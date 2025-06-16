@@ -210,7 +210,7 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
         // 设置速度
         projectile.setVelocity(lookDirection.multiply(3.0));
         projectile.setHomingTarget(null);
-        projectile.setDamage(2.0f);
+        projectile.setDamage(6.0f);
         
         return projectile;
     }

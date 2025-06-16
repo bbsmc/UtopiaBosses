@@ -477,7 +477,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                             System.out.println("【右手近战攻击】当前进度 - 第" + animationTicks + "帧 / " + RIGHT_ATTACK_DURATION + "帧");
                         }
                         
-                        if (animationTicks == 40) {
+                        if (animationTicks == 21) {
                             LivingEntity target = this.getTarget();
                             if (target != null && this.distanceTo(target) < 6.0) {
                                 System.out.println("【右手近战攻击】触发伤害效果 - 第" + animationTicks + "帧");
@@ -1071,6 +1071,15 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     MinecraftClient.getInstance().getSoundManager().play(
                         PositionedSoundInstance.master(
                             SoundRegistry.ENTITY_SUNFLOWER_LASER_CANNON,
+                            1.0F,  // 音调
+                            1.0F   // 增大音量
+                        )
+                    );
+                }else if (event.getKeyframeData().getSound().equals("flower_lade_storm")) {
+                    // 使用ClientPlayer播放声音
+                    MinecraftClient.getInstance().getSoundManager().play(
+                        PositionedSoundInstance.master(
+                            SoundRegistry.ENTITY_SUNFLOWER_FLOWER_LADE_STORM,
                             1.0F,  // 音调
                             1.0F   // 增大音量
                         )
