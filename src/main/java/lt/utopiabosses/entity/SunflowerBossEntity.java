@@ -1047,44 +1047,49 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     }
                 }
             }).setSoundKeyframeHandler(event -> {
-                // 处理声音关键帧
-                if (event.getKeyframeData().getSound().equals("sunflower_right_attack")) {
-                    // 使用ClientPlayer播放声音
-                    MinecraftClient.getInstance().getSoundManager().play(
-                        PositionedSoundInstance.master(
-                            SoundRegistry.ENTITY_SUNFLOWER_RIGHT_ATTACK,
-                            1.0F,  // 音调
-                            1.0F   // 增大音量
-                        )
-                    );
-                }else if (event.getKeyframeData().getSound().equals("sunflower_left_attack")) {
-                    // 使用ClientPlayer播放声音
-                    MinecraftClient.getInstance().getSoundManager().play(
-                        PositionedSoundInstance.master(
-                            SoundRegistry.ENTITY_SUNFLOWER_LEFT_ATTACK,
-                            1.0F,  // 音调
-                            1.0F   // 增大音量
-                        )
-                    );
-                }else if (event.getKeyframeData().getSound().equals("laser_cannon")) {
-                    // 使用ClientPlayer播放声音
-                    MinecraftClient.getInstance().getSoundManager().play(
-                        PositionedSoundInstance.master(
-                            SoundRegistry.ENTITY_SUNFLOWER_LASER_CANNON,
-                            1.0F,  // 音调
-                            1.0F   // 增大音量
-                        )
-                    );
-                }else if (event.getKeyframeData().getSound().equals("flower_lade_storm")) {
-                    // 使用ClientPlayer播放声音
-                    MinecraftClient.getInstance().getSoundManager().play(
-                        PositionedSoundInstance.master(
-                            SoundRegistry.ENTITY_SUNFLOWER_FLOWER_LADE_STORM,
-                            1.0F,  // 音调
-                            1.0F   // 增大音量
-                        )
-                    );
+                if (getWorld().isClient){
+                    MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_SUNFLOWER_LASER_CANNON_ID,null);
+                    MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_SUNFLOWER_FLOWER_LADE_STORM_ID,null);
+                    // 处理声音关键帧
+                    if (event.getKeyframeData().getSound().equals("sunflower_right_attack")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                                PositionedSoundInstance.master(
+                                        SoundRegistry.ENTITY_SUNFLOWER_RIGHT_ATTACK,
+                                        1.0F,  // 音调
+                                        1.0F   // 增大音量
+                                )
+                        );
+                    }else if (event.getKeyframeData().getSound().equals("sunflower_left_attack")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                                PositionedSoundInstance.master(
+                                        SoundRegistry.ENTITY_SUNFLOWER_LEFT_ATTACK,
+                                        1.0F,  // 音调
+                                        1.0F   // 增大音量
+                                )
+                        );
+                    }else if (event.getKeyframeData().getSound().equals("laser_cannon")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                                PositionedSoundInstance.master(
+                                        SoundRegistry.ENTITY_SUNFLOWER_LASER_CANNON,
+                                        1.0F,  // 音调
+                                        1.0F   // 增大音量
+                                )
+                        );
+                    }else if (event.getKeyframeData().getSound().equals("flower_lade_storm")) {
+                        // 使用ClientPlayer播放声音
+                        MinecraftClient.getInstance().getSoundManager().play(
+                                PositionedSoundInstance.master(
+                                        SoundRegistry.ENTITY_SUNFLOWER_FLOWER_LADE_STORM,
+                                        1.0F,  // 音调
+                                        1.0F   // 增大音量
+                                )
+                        );
+                    }
                 }
+
             })
         );
     }

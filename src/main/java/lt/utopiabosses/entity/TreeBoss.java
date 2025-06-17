@@ -1035,95 +1035,102 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             .setSoundKeyframeHandler(event -> {
                 // 处理声音关键帧
                 try {
-                    if (event.getKeyframeData().getSound().equals("skill_stomping_feet")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_STOMPING_FEET, 
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("skill_grab_with_the_left_hand")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_GRAB_WITH_THE_LEFT_HAND,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("skill_insert_both_arms_into_the_ground_surface")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master( 
-                                SoundRegistry.ENTITY_TREEBOSS_INSERT_BOTH_ARMS_INTO_THE_GROUND_SURFACE,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("skill_roar_towards_the_sky")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_ROAR_TOWARDS_THE_SKY,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("tree_run")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("tree_run2")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_TREE_RUN2,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("attack_left")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_ATTACK_LEFT,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("attack_right")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_ATTACK_RIGHT,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
-                    }
-                    else if (event.getKeyframeData().getSound().equals("die")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                            PositionedSoundInstance.master(
-                                SoundRegistry.ENTITY_TREEBOSS_DIE,
-                                1.0F,  // 音调
-                                1.0F   // 增大音量
-                            )
-                        );
+                    if (getWorld().isClient()){
+                        MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_TREEBOSS_STOMPING_FEET_ID,null);
+                        MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_TREEBOSS_INSERT_BOTH_ARMS_INTO_THE_GROUND_SURFACE_ID,null);
+                        MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_TREEBOSS_ROAR_TOWARDS_THE_SKY_ID,null);
+                        MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_TREEBOSS_GRAB_WITH_THE_LEFT_HAND_ID,null);
+
+                        if (event.getKeyframeData().getSound().equals("skill_stomping_feet")) {
+                            // 使用ClientPlayer播放声音
+                            MinecraftClient.getInstance().getSoundManager().play(
+                                    PositionedSoundInstance.master(
+                                            SoundRegistry.ENTITY_TREEBOSS_STOMPING_FEET,
+                                            1.0F,  // 音调
+                                            1.0F   // 增大音量
+                                    )
+                            );
+                        }
+                        else if (event.getKeyframeData().getSound().equals("skill_grab_with_the_left_hand")) {
+                            // 使用ClientPlayer播放声音
+                            MinecraftClient.getInstance().getSoundManager().play(
+                                    PositionedSoundInstance.master(
+                                            SoundRegistry.ENTITY_TREEBOSS_GRAB_WITH_THE_LEFT_HAND,
+                                            1.0F,  // 音调
+                                            1.0F   // 增大音量
+                                    )
+                            );
+                        }
+                        else if (event.getKeyframeData().getSound().equals("skill_insert_both_arms_into_the_ground_surface")) {
+                            // 使用ClientPlayer播放声音
+                            MinecraftClient.getInstance().getSoundManager().play(
+                                    PositionedSoundInstance.master(
+                                            SoundRegistry.ENTITY_TREEBOSS_INSERT_BOTH_ARMS_INTO_THE_GROUND_SURFACE,
+                                            1.0F,  // 音调
+                                            1.0F   // 增大音量
+                                    )
+                            );
+                        }
+                        else if (event.getKeyframeData().getSound().equals("skill_roar_towards_the_sky")) {
+                            // 使用ClientPlayer播放声音
+                            MinecraftClient.getInstance().getSoundManager().play(
+                                    PositionedSoundInstance.master(
+                                            SoundRegistry.ENTITY_TREEBOSS_ROAR_TOWARDS_THE_SKY,
+                                            1.0F,  // 音调
+                                            1.0F   // 增大音量
+                                    )
+                            );
+                        }
+                        else if (event.getKeyframeData().getSound().equals("tree_run")) {
+                            // 使用ClientPlayer播放声音
+                            MinecraftClient.getInstance().getSoundManager().play(
+                                    PositionedSoundInstance.master(
+                                            SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
+                                            1.0F,  // 音调
+                                            1.0F   // 增大音量
+                                    )
+                            );
+                        }
+                        else if (event.getKeyframeData().getSound().equals("tree_run2")) {
+                            // 使用ClientPlayer播放声音
+                            MinecraftClient.getInstance().getSoundManager().play(
+                                    PositionedSoundInstance.master(
+                                            SoundRegistry.ENTITY_TREEBOSS_TREE_RUN2,
+                                            1.0F,  // 音调
+                                            1.0F   // 增大音量
+                                    )
+                            );
+                        }
+                        else if (event.getKeyframeData().getSound().equals("attack_left")) {
+                            // 使用ClientPlayer播放声音
+                            MinecraftClient.getInstance().getSoundManager().play(
+                                    PositionedSoundInstance.master(
+                                            SoundRegistry.ENTITY_TREEBOSS_ATTACK_LEFT,
+                                            1.0F,  // 音调
+                                            1.0F   // 增大音量
+                                    )
+                            );
+                        }
+                        else if (event.getKeyframeData().getSound().equals("attack_right")) {
+                            // 使用ClientPlayer播放声音
+                            MinecraftClient.getInstance().getSoundManager().play(
+                                    PositionedSoundInstance.master(
+                                            SoundRegistry.ENTITY_TREEBOSS_ATTACK_RIGHT,
+                                            1.0F,  // 音调
+                                            1.0F   // 增大音量
+                                    )
+                            );
+                        }
+                        else if (event.getKeyframeData().getSound().equals("die")) {
+                            // 使用ClientPlayer播放声音
+                            MinecraftClient.getInstance().getSoundManager().play(
+                                    PositionedSoundInstance.master(
+                                            SoundRegistry.ENTITY_TREEBOSS_DIE,
+                                            1.0F,  // 音调
+                                            1.0F   // 增大音量
+                                    )
+                            );
+                        }
                     }
                 } catch (Exception e) {
                     System.out.println("获取声音关键帧数据失败: " + e.getMessage());
