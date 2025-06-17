@@ -1,8 +1,6 @@
 package lt.utopiabosses.entity;
 
 import lt.utopiabosses.client.renderer.SunflowerBossRenderer;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.LookAtEntityGoal;
@@ -17,18 +15,15 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.particle.DefaultParticleType;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.cache.object.BakedGeoModel;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.Animation;
 import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationController.State;
 import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.util.GeckoLibUtil;
 import net.minecraft.text.Text;
@@ -45,15 +40,11 @@ import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
 import net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket;
 import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.core.animation.AnimationState;
 import net.minecraft.util.Identifier;
-import lt.utopiabosses.Utopiabosses;
 
 import java.util.List;
 import java.util.Random;
 import java.util.ArrayList;
-import net.minecraft.entity.ItemEntity;
-import net.minecraft.item.ItemStack;
 import lt.utopiabosses.registry.SoundRegistry;
 public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
@@ -221,7 +212,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             BossBar.Color.YELLOW, 
             BossBar.Style.PROGRESS
         );
-        System.out.println("向日葵BOSS已创建，尝试加载动画...");
+
     }
 
     public static DefaultAttributeContainer.Builder createAttributes() {
@@ -250,7 +241,6 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 在tick开始时检查并清理可能的遗留太阳
             if (!this.getWorld().isClient() && this.age % 20 == 0) { // 每秒检查一次
                 if (currentAnimation != AnimationType.SUNBEAM && !suns.isEmpty()) {
-                    System.out.println("检测到非阳光射线状态下的残留太阳，执行清理");
                     cleanupSuns();
                     cleanupAllSunsInWorld();
                 }
@@ -259,7 +249,6 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 if (DEBUG_SUNBEAM_ONLY && currentAnimation != AnimationType.SUNBEAM) {
                     // 如果attackCooldown为0但没有目标，重置debugAttackCounter，避免卡在技能前夕
                     if (attackCooldown <= 0 && this.getTarget() == null && debugAttackCounter > 0) {
-                        System.out.println("调试模式：无目标，重置攻击计数器");
                         debugAttackCounter = 0;
                     }
                 }
@@ -279,7 +268,6 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     // 检查死亡动画是否已经完成
                     if (animationTicks >= KUWEI_STORM_DURATION) {
                         // 动画完成后真正处理死亡
-                        System.out.println("死亡动画播放完毕，现在真正处理死亡");
                         isPlayingDeathAnimation = false;
                         
                         // 确保实体真正死亡
@@ -295,7 +283,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     }
                 } else {
                     // 如果当前动画不是死亡动画，但标志是死亡状态，则强制设置为死亡动画
-                    System.out.println("检测到死亡状态但动画不正确，强制设置为死亡动画");
+
                     this.currentAnimation = AnimationType.KUWEI_STORM;
                     this.dataTracker.set(ANIMATION_STATE, (byte)AnimationType.KUWEI_STORM.ordinal());
                     this.animationTicks = 0;
@@ -323,13 +311,13 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     // 保存当前目标
                     this.setAiDisabled(true);
                     aiDisabled = true;
-                    System.out.println("BOSS旋转：AI已禁用，当前角度: " + rotationYaw);
+                    
                 }
             } else if (aiDisabled) {
                 // 如果不应该旋转但AI被禁用，则恢复AI
                 this.setAiDisabled(false);
                 aiDisabled = false;
-                System.out.println("BOSS旋转：AI已恢复");
+                
             }
             
             // 技能冷却时间
@@ -343,7 +331,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 animationLockTimer--;
                 if (animationLockTimer <= 0) {
                     isAnimationLocked = false;
-                    System.out.println("动画锁定已解除");
+                    
                 }
             }
             
@@ -351,7 +339,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 在tick方法中只检查，不触发，因为已在damage方法中处理
             if (!isHalfHealthTriggered && this.getHealth() <= this.getMaxHealth() / 2) {
                 isHalfHealthTriggered = true;
-                System.out.println("【半血触发】在tick方法中检测到半血状态");
+                
                 // 不在这里尝试触发花瓣风暴，而是通过damage方法处理
             }
             
@@ -360,8 +348,6 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 // 确保currentAnimation与tracker保持同步
                 byte trackedAnim = this.dataTracker.get(ANIMATION_STATE);
                 if (trackedAnim != this.currentAnimation.ordinal()) {
-                    System.out.println("【同步警告】当前动画(" + this.currentAnimation + ")与追踪器(" + 
-                                     AnimationType.values()[trackedAnim] + ")不一致，正在同步");
                     this.currentAnimation = AnimationType.values()[trackedAnim];
                 }
                 
@@ -378,7 +364,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     // 发送动画帧同步请求，使用不会触发类型转换的方式
                     try {
                         // 使用自定义数据包或其他安全的方式来同步
-                        System.out.println("发送关键帧同步请求：即将触发右手攻击伤害");
+                        
                         
                         // 我们暂时禁用这个同步功能，直到找到更安全的方式
                         // this.getWorld().sendEntityStatus(this, (byte)21);
@@ -387,7 +373,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         // 确保dataTracker是最新的
                         this.dataTracker.set(DATA_ANIMATION_ID, animationTicks);
                     } catch (Exception e) {
-                        System.out.println("发送动画帧同步请求时出错: " + e.getMessage());
+                        
                     }
                 }
                 
@@ -403,7 +389,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         if (animationTicks % 5 == 0 && animationTicks <= effectFrame + 20) {
                             LivingEntity seedTarget = this.getTarget();
                             if (seedTarget != null) {
-                                System.out.println("【葵花籽弹幕】发射种子 - 第" + animationTicks + "帧");
+                                
                                 
                                 // 每次发射5颗种子，形成密集弹幕
                                 for (int i = 0; i < 5; i++) {
@@ -426,7 +412,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     case PETAL_STORM:
                         // 花瓣风暴 - 在特定帧触发效果
                         if (animationTicks == effectFrame) {
-                            System.out.println("【花瓣风暴】触发效果 - 第" + animationTicks + "帧");
+                            
                             createPetalStormEffect();
                             
                         }
@@ -441,13 +427,13 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         // 左手攻击 - 在第21帧触发伤害
                         // 每10帧记录一次日志，方便调试
                         if (animationTicks % 10 == 0) {
-                            System.out.println("【左手近战攻击】当前进度 - 第" + animationTicks + "帧 / " + LEFT_ATTACK_DURATION + "帧");
+                            
                         }
                         
                         if (animationTicks == 21) {
                             LivingEntity target = this.getTarget();
                             if (target != null && this.distanceTo(target) < 6.0) {
-                                System.out.println("【左手近战攻击】触发伤害效果 - 第" + animationTicks + "帧");
+                                
                                 
                                 // 在动画关键帧应用伤害
                                 if (!this.getWorld().isClient()) {
@@ -474,13 +460,13 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         // 右手攻击 - 在第40帧触发伤害（与视觉效果一致）
                         // 每10帧记录一次日志，方便调试
                         if (animationTicks % 10 == 0) {
-                            System.out.println("【右手近战攻击】当前进度 - 第" + animationTicks + "帧 / " + RIGHT_ATTACK_DURATION + "帧");
+                            
                         }
                         
                         if (animationTicks == 21) {
                             LivingEntity target = this.getTarget();
                             if (target != null && this.distanceTo(target) < 6.0) {
-                                System.out.println("【右手近战攻击】触发伤害效果 - 第" + animationTicks + "帧");
+                                
                                 
                                 // 在动画关键帧应用伤害
                                 if (!this.getWorld().isClient()) {
@@ -523,18 +509,18 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     this.dataTracker.set(DATA_ANIMATION_ID, 0); // 重置动画帧追踪器
                     isAnimationLocked = false;
                     
-                    System.out.println("动画已完成，重置为IDLE状态");
+                    
                     
                     // 根据完成的动画类型增加普通攻击计数
                     if (completedAnimation == AnimationType.LEFT_MELEE_ATTACK || 
                         completedAnimation == AnimationType.RIGHT_MELEE_ATTACK || 
                         completedAnimation == AnimationType.RANGED_ATTACK) {
                         normalAttackCounter++;
-                        System.out.println("普通攻击计数增加: " + normalAttackCounter + " (完成的动画: " + completedAnimation + ")");
+                        
                         
                         // 在普通攻击动画完成后开始攻击冷却
                         attackCooldown = ATTACK_COOLDOWN_TIME;
-                        System.out.println("攻击冷却开始: " + ATTACK_COOLDOWN_TIME + " ticks (3.5秒)");
+                        
                     }
                     
                     // 保存上一次的动画类型
@@ -550,9 +536,9 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     if (!this.getWorld().isClient()) {
                         try {
                             this.getWorld().sendEntityStatus(this, (byte)10);
-                            System.out.println("向客户端发送动画重置通知");
+                            
                         } catch (Exception e) {
-                            System.out.println("发送动画重置通知时出错: " + e.getMessage());
+                            
                         }
                     }
                 }
@@ -608,19 +594,19 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 for (SunEntity sun : new ArrayList<>(suns)) {
                     if (sun != null && (!sun.isAlive() || sun.isRemoved())) {
                         suns.remove(sun);
-                        System.out.println("移除了一个无效的太阳实体");
+                        
                     }
                 }
             }
             
             // 在tick开始时检查当前动画状态
             if (currentAnimation != AnimationType.SUNBEAM && !suns.isEmpty()) {
-                System.out.println("检测到非阳光射线状态下的残留太阳，执行清理");
+                
                 cleanupSuns();
             }
         } catch (Exception e) {
             // 捕获所有异常，防止实体崩溃
-            System.out.println("实体处理tick时出现异常: " + e.getMessage());
+            
             e.printStackTrace();
             
             // 尝试恢复到安全状态
@@ -629,7 +615,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     // 解除锁定状态
                     isAnimationLocked = false;
                     animationLockTimer = 0;
-                    System.out.println("异常处理：强制解除动画锁定");
+                    
                 }
                 
                 // 仅尝试恢复到IDLE状态，不尝试任何其他复杂处理
@@ -637,7 +623,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     currentAnimation = AnimationType.IDLE;
                     dataTracker.set(ANIMATION_STATE, (byte)AnimationType.IDLE.ordinal());
                     animationTicks = 0;
-                    System.out.println("异常处理：重置为IDLE状态");
+                    
                     
                     // 尝试发送IDLE状态到客户端
                     if (!this.getWorld().isClient()) {
@@ -650,7 +636,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 }
             } catch (Exception ex) {
                 // 忽略异常恢复过程中的错误
-                System.out.println("尝试恢复状态时出错: " + ex.getMessage());
+                
             }
         }
     }
@@ -682,13 +668,13 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private void selectAndExecuteSkill(LivingEntity target) {
         // 如果不是IDLE状态，不执行任何技能
         if (this.currentAnimation != AnimationType.IDLE) {
-            System.out.println("无法执行技能：当前不是IDLE状态");
+            
             return;
         }
         
         // 近战判断
         if (this.squaredDistanceTo(target) < 16.0 && random.nextFloat() < 0.4) {
-            System.out.println("选择执行近战攻击");
+            
             if (random.nextBoolean()) {
                 setAnimation(AnimationType.LEFT_MELEE_ATTACK);
             } else {
@@ -706,7 +692,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         if (!availableSkills.isEmpty()) {
             AnimationType selectedSkill = availableSkills.get(random.nextInt(availableSkills.size()));
-            System.out.println("选择执行技能: " + selectedSkill);
+            
             
             switch (selectedSkill) {
                 case SEED_BARRAGE:
@@ -732,11 +718,11 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private void startSeedBarrageSkill() {
         // 检查当前动画状态
         if (this.currentAnimation != AnimationType.IDLE) {
-            System.out.println("无法开始葵花籽弹幕：当前已有其他动画: " + this.currentAnimation);
+            
             return;
         }
         
-        System.out.println("开始葵花籽弹幕技能");
+        
         setAnimation(AnimationType.SEED_BARRAGE);
         seedBarrageCooldown = 10; // 短冷却，确保技能序列
         
@@ -745,11 +731,11 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
     private void startSunbeamSkill() {
         if (this.currentAnimation != AnimationType.IDLE) {
-            System.out.println("无法开始阳光灼烧射线：当前已有其他动画: " + this.currentAnimation);
+            
             return;
         }
         
-        System.out.println("开始阳光灼烧射线技能");
+        
         
         // 在设置动画前先清理所有可能残留的太阳实体
         cleanupAllSunsInWorld();
@@ -773,7 +759,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             this.bodyYaw = yaw;
             this.headYaw = yaw;
             
-            System.out.println("阳光灼烧射线技能：BOSS已对准目标，角度: " + yaw);
+            
         }
         
         setAnimation(AnimationType.SUNBEAM);
@@ -790,14 +776,14 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             sendMessageToNearbyPlayers("§e向日葵BOSS使用了§c阳光灼烧射线§e技能！");
         }
         
-        System.out.println("阳光灼烧射线技能初始化完成，开始生成太阳");
+        
     }
 
     private void startPetalStormSkill() {
         // 移除对当前动画状态的检查，允许从任何状态切换到花瓣风暴
         // 这对于半血触发特别重要
         
-        System.out.println("开始花瓣风暴技能");
+        
         
         // 强制清理所有资源，确保没有冲突
         if (this.currentAnimation == AnimationType.SUNBEAM) {
@@ -880,13 +866,13 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     
                     // 限制DEBUG日志输出频率，避免大量无用日志
                     if (this.getWorld().isClient() && this.age % 5 == 0) {
-                        System.out.println("动画控制器 - 当前动画: " + currentAnimationType);
+                        
                     }
                     
                     // 检查当前是否播放完了非循环动画
                     if (event.getController().hasAnimationFinished() && currentAnimationType != AnimationType.IDLE) {
                         // 非循环动画已经结束，强制切换回IDLE
-                        System.out.println("检测到非循环动画已结束，强制切换回IDLE");
+                        
                         
                         // 强制重置动画状态
                         this.currentAnimation = AnimationType.IDLE;
@@ -909,12 +895,12 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                             animationTicks >= 50 && 
                             event.getController().getAnimationState() != AnimationController.State.STOPPED) {
                         
-                        System.out.println("右手攻击已运行50帧以上，检查是否应强制结束");
+                        
                         
                         // 检查是否已经执行了伤害逻辑 (第40帧)
                         if (animationTicks >= 45) {
                             // 已经触发了伤害，直接强制结束动画
-                            System.out.println("右手攻击已完成伤害阶段，强制切换到IDLE");
+                            
                             
                             // 强制重置动画状态
                             event.getController().forceAnimationReset();
@@ -960,7 +946,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     // 直接设置动画，使用setAndContinue而不是直接修改状态
                     return event.setAndContinue(animation);
                 } catch (Exception e) {
-                    System.out.println("动画控制器出错: " + e.getMessage());
+                    
                     e.printStackTrace();
                     return PlayState.STOP;
                 }
@@ -1047,45 +1033,63 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     }
                 }
             }).setSoundKeyframeHandler(event -> {
-                if (getWorld().isClient){
-                    MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_SUNFLOWER_LASER_CANNON_ID,null);
-                    MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_SUNFLOWER_FLOWER_LADE_STORM_ID,null);
+                if (getWorld().isClient()){
+//                    MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_SUNFLOWER_LASER_CANNON_ID,null);
+//                    MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_SUNFLOWER_FLOWER_LADE_STORM_ID,null);
                     // 处理声音关键帧
                     if (event.getKeyframeData().getSound().equals("sunflower_right_attack")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                                PositionedSoundInstance.master(
-                                        SoundRegistry.ENTITY_SUNFLOWER_RIGHT_ATTACK,
-                                        1.0F,  // 音调
-                                        1.0F   // 增大音量
-                                )
+                        event.getAnimatable()
+                        .getWorld()
+                        .playSound(
+                                event.getAnimatable().getX(),
+                                event.getAnimatable().getY(),
+                                event.getAnimatable().getZ(),
+                                SoundRegistry.ENTITY_SUNFLOWER_RIGHT_ATTACK,
+                                SoundCategory.HOSTILE,
+                                2.0F,
+                                1.0F,
+                                false
                         );
                     }else if (event.getKeyframeData().getSound().equals("sunflower_left_attack")) {
-                        // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                                PositionedSoundInstance.master(
-                                        SoundRegistry.ENTITY_SUNFLOWER_LEFT_ATTACK,
-                                        1.0F,  // 音调
-                                        1.0F   // 增大音量
-                                )
+                        event.getAnimatable()
+                        .getWorld()
+                        .playSound(
+                                event.getAnimatable().getX(),
+                                event.getAnimatable().getY(),
+                                event.getAnimatable().getZ(),
+                                SoundRegistry.ENTITY_SUNFLOWER_LEFT_ATTACK,
+                                SoundCategory.HOSTILE,
+                                2.0F,
+                                1.0F,
+                                false
                         );
                     }else if (event.getKeyframeData().getSound().equals("laser_cannon")) {
                         // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                                PositionedSoundInstance.master(
-                                        SoundRegistry.ENTITY_SUNFLOWER_LASER_CANNON,
-                                        1.0F,  // 音调
-                                        1.0F   // 增大音量
-                                )
+                        event.getAnimatable()
+                        .getWorld()
+                        .playSound(
+                                event.getAnimatable().getX(),
+                                event.getAnimatable().getY(),
+                                event.getAnimatable().getZ(),
+                                SoundRegistry.ENTITY_SUNFLOWER_LASER_CANNON,
+                                SoundCategory.HOSTILE,
+                                2.0F,
+                                1.0F,
+                                false
                         );
                     }else if (event.getKeyframeData().getSound().equals("flower_lade_storm")) {
                         // 使用ClientPlayer播放声音
-                        MinecraftClient.getInstance().getSoundManager().play(
-                                PositionedSoundInstance.master(
-                                        SoundRegistry.ENTITY_SUNFLOWER_FLOWER_LADE_STORM,
-                                        1.0F,  // 音调
-                                        1.0F   // 增大音量
-                                )
+                        event.getAnimatable()
+                        .getWorld()
+                        .playSound(
+                                event.getAnimatable().getX(),
+                                event.getAnimatable().getY(),
+                                event.getAnimatable().getZ(),
+                                SoundRegistry.ENTITY_SUNFLOWER_FLOWER_LADE_STORM,
+                                SoundCategory.HOSTILE,
+                                2.0F,
+                                1.0F,
+                                false
                         );
                     }
                 }
@@ -1114,7 +1118,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         // 检查这次伤害是否会致命
         if (this.getHealth() <= amount) {
             // 即将致命，播放死亡动画
-            System.out.println("收到致命伤害，开始播放死亡动画");
+            
             startDeathAnimation(source, amount);
             
             // 发送死亡消息
@@ -1135,11 +1139,11 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         if (damaged && !isHalfHealthTriggered && this.getHealth() <= this.getMaxHealth() / 2) {
             // 半血首次触发 - 立即处理，不再等待下一个tick
             isHalfHealthTriggered = true;
-            System.out.println("BOSS血量降至半血，立即触发花瓣风暴");
+            
             
             // 如果当前正在执行阳光射线技能，先中断它
             if (this.currentAnimation == AnimationType.SUNBEAM) {
-                System.out.println("中断阳光射线技能，准备执行花瓣风暴");
+                
                 cleanupSuns();
                 // 强制结束当前动画
                 this.animationTicks = getAnimationDuration(AnimationType.SUNBEAM);
@@ -1157,13 +1161,13 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     currentSkillIndex = 0;   // 重置技能序列
                 }
             } catch (Exception e) {
-                System.out.println("触发花瓣风暴时出错: " + e.getMessage());
+                
             }
         }
         
         // 只在受到大量伤害时才中断阳光射线技能
         if (damaged && this.currentAnimation == AnimationType.SUNBEAM && amount >= 10.0f && !isHalfHealthTriggered) {
-            System.out.println("受到大量伤害(" + amount + ")，中断阳光射线技能");
+            
             cleanupSuns();
             // 重置为IDLE状态
             setAnimation(AnimationType.IDLE);
@@ -1176,11 +1180,11 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private void startDeathAnimation(DamageSource source, float amount) {
         // 检查是否已经在播放死亡动画
         if (isPlayingDeathAnimation) {
-            System.out.println("已经在播放死亡动画，不再重复触发");
+            
             return;
         }
         
-        System.out.println("开始死亡动画");
+        
         
         // 设置标记
         isPlayingDeathAnimation = true;
@@ -1229,7 +1233,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     
     // 新增：强制设置死亡动画的方法
     private void forceDeathAnimation() {
-        System.out.println("强制切换到死亡动画");
+        
         
         // 强制清理所有正在进行的技能
         cleanupSuns();
@@ -1255,12 +1259,12 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private void actuallyDie(DamageSource source) {
         // 如果已经在客户端，跳过处理
         if (this.getWorld().isClient()) {
-            System.out.println("已经在播放死亡动画，跳过onDeath处理");
+            
             return;
         }
         
         // 清理BOSS相关资源
-        System.out.println("向日葵BOSS已死亡，血条已清理");
+        
         if (this.bossBar != null) {
             this.bossBar.clearPlayers();
         }
@@ -1296,18 +1300,18 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
     @Override
     public void onDeath(DamageSource damageSource) {
-        System.out.println("BOSS死亡，清理所有太阳实体");
+        
         cleanupSuns();
         super.onDeath(damageSource);
     }
 
     @Override
     public void remove(Entity.RemovalReason reason) {
-        System.out.println("BOSS被移除，清理所有太阳实体");
+        
         cleanupSuns();
         // 如果正在播放死亡动画且不是明确要求删除，推迟删除
         if (isPlayingDeathAnimation && reason != RemovalReason.KILLED && !shouldBeRemoved) {
-            System.out.println("正在播放死亡动画，推迟实体移除: " + reason);
+            
             // 保存移除原因，但不立即移除
             this.removalReason = reason;
             return;
@@ -1318,7 +1322,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 清理血条
             if (this.bossBar != null) {
                 this.bossBar.clearPlayers();
-                System.out.println("向日葵BOSS已移除，血条已清理：" + reason);
+                
             }
             
             // 正常移除
@@ -1367,7 +1371,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         // 检查是否有未完成的太阳技能
         if (nbt.contains("HasActiveSuns") && nbt.getBoolean("HasActiveSuns")) {
-            System.out.println("检测到未完成的太阳技能，执行清理...");
+            
             // 强制清理所有可能存在的太阳实体
             cleanupAllSunsInWorld();
             // 重置相关状态
@@ -1405,7 +1409,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 currentAnimation = animation;
                 dataTracker.set(ANIMATION_STATE, (byte)animation.ordinal());
                 animationTicks = 0;
-                System.out.println("开始播放死亡动画");
+                
                 
                 // 直接触发动画
                 forceTriggerAnimation("controller", "kuwei");
@@ -1414,12 +1418,12 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             
             // 只有非锁定状态下才能切换动画
             if (isAnimationLocked && animation != AnimationType.IDLE) {
-                System.out.println("动画已锁定，无法切换到:" + animation);
+                
                 return;
             }
             
             // 更新当前动画和数据追踪器
-            System.out.println("设置动画: " + animation);
+            
             currentAnimation = animation;
             dataTracker.set(ANIMATION_STATE, (byte)animation.ordinal());
             animationTicks = 0;
@@ -1434,11 +1438,11 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 使用triggerAnim直接触发动画
             switch(animation) {
                 case LEFT_MELEE_ATTACK:
-                    System.out.println("开始左手攻击动画 - 持续" + LEFT_ATTACK_DURATION + "帧，将在第21帧触发伤害");
+                    
                     forceTriggerAnimation("controller", "left_attack");
                     break;
                 case RIGHT_MELEE_ATTACK:
-                    System.out.println("开始右手攻击动画 - 持续" + RIGHT_ATTACK_DURATION + "帧，将在第40帧触发伤害");
+                    
                     forceTriggerAnimation("controller", "right_attack");
                     break;
                 case RANGED_ATTACK:
@@ -1467,14 +1471,14 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     
                     // 向客户端发送状态更新，使用状态码10，但客户端会从追踪器读取正确的动画类型
                     this.getWorld().sendEntityStatus(this, (byte)10);
-                    System.out.println("向客户端发送动画状态更新: " + animation + " (状态码: " + animation.ordinal() + ")");
+                    
                 } catch (Exception e) {
-                    System.out.println("发送动画状态更新时出错: " + e.getMessage());
+                    
                     e.printStackTrace();
                 }
             }
         } catch (Exception e) {
-            System.out.println("设置动画时出错: " + e.getMessage());
+            
             e.printStackTrace();
         }
     }
@@ -1487,18 +1491,16 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             if (this.getWorld() != null && this.getWorld().isClient()) {
                 // 在客户端，优先使用当前保存的状态
                 // 但也检查追踪器是否有更新
-                byte animationId = this.dataTracker.get(ANIMATION_STATE);
-                AnimationType trackedAnimType = AnimationType.IDLE;
+//                byte animationId = this.dataTracker.get(ANIMATION_STATE);
+//                AnimationType trackedAnimType = AnimationType.IDLE;
                 
-                if (animationId >= 0 && animationId < AnimationType.values().length) {
-                    trackedAnimType = AnimationType.values()[animationId];
-                    
-                    // 如果追踪器状态与当前不同，更新日志但不一定更新状态
-                    if (trackedAnimType != this.currentAnimation) {
-                        System.out.println("客户端动画状态差异: 当前=" + this.currentAnimation + 
-                                        ", 追踪器=" + trackedAnimType);
-                    }
-                }
+//                if (animationId >= 0 && animationId < AnimationType.values().length) {
+//                    trackedAnimType = AnimationType.values()[animationId];
+//
+//                    // 如果追踪器状态与当前不同，更新日志但不一定更新状态
+//                    if (trackedAnimType != this.currentAnimation) {
+//                    }
+//                }
                 
                 return this.currentAnimation;
             } else {
@@ -1512,7 +1514,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             
             return currentAnimation; // 默认返回当前缓存的状态
         } catch (Exception e) {
-            System.out.println("获取动画状态时出错: " + e.getMessage());
+            
             e.printStackTrace();
             return AnimationType.IDLE;
         }
@@ -1543,13 +1545,6 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         int currentFrame = this.animationTicks;
         
-        // 添加更多详细的日志信息
-        if (currentFrame % 10 == 0 || currentFrame == 100) { // 改回100帧
-            System.out.println("阳光灼烧射线技能执行中，当前帧: " + currentFrame + 
-                              "，目标: " + target.getName().getString() + 
-                              "，距离: " + this.distanceTo(target));
-        }
-        
         // 在整个技能期间，始终让BOSS面向玩家
         // 计算朝向目标的角度
         double deltaX = target.getX() - this.getX();
@@ -1560,22 +1555,13 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         this.setYaw(yaw);
         this.bodyYaw = yaw;
         this.headYaw = yaw;
-        
-        // 只在开始时和每30帧记录一次朝向日志，避免日志过多
-        if (currentFrame == 1 || currentFrame % 30 == 0) {
-            System.out.println("阳光灼烧射线技能：BOSS已对准目标，角度: " + yaw);
-        }
+
         
         // 前100帧处理太阳相关的逻辑
         if (currentFrame < 100) { // 改回100帧
             // 更新太阳的位置和动画
             updateSuns(currentFrame);
         } else if (currentFrame < SUNBEAM_DURATION) {
-            // 记录光束发射阶段开始
-            if (currentFrame == 100) { // 改回100帧
-                System.out.println("阳光灼烧射线开始发射光束阶段，太阳数量: " + suns.size() + 
-                                  "，目标位置: " + target.getPos());
-            }
             
             // 在100-160帧间，创建阳光射线
             // 获取BOSS花朵中心位置作为光束起点
@@ -1592,12 +1578,12 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         // 技能结束时确保清理
         if (currentFrame >= SUNBEAM_DURATION) {
-            System.out.println("阳光灼烧射线技能结束，执行清理");
+            
             cleanupSuns();
             
             // 在调试模式下，重置状态准备下一轮攻击
             if (DEBUG_SUNBEAM_ONLY) {
-                System.out.println("调试模式：技能结束，重置状态");
+                
                 // 重置状态
                 this.animationTicks = 0;
                 this.currentAnimation = AnimationType.IDLE;
@@ -1619,7 +1605,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private void spawnSuns() {
         if (this.getWorld().isClient()) return;
         
-        System.out.println("开始生成太阳实体");
+        
         suns.clear();
         sunPositions.clear();
         absorbedSunCount = 0;
@@ -1644,10 +1630,10 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 this.getWorld().spawnEntity(sun);
                 suns.add(sun);
                 
-                System.out.println("成功生成第 " + (i + 1) + " 个太阳实体");
+                
                 
             } catch (Exception e) {
-                System.out.println("生成太阳实体失败: " + e.getMessage());
+                
                 e.printStackTrace();
             }
         }
@@ -1769,7 +1755,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     // 在技能结束时清理
     private void cleanupSuns() {
         try {
-            System.out.println("开始清理所有太阳实体，当前数量: " + suns.size());
+            
             
             // 复制列表，避免并发修改异常
             List<SunEntity> sunsCopy = new ArrayList<>(suns);
@@ -1784,9 +1770,9 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     try {
                         // 强制移除
                         sun.remove(Entity.RemovalReason.DISCARDED);
-                        System.out.println("成功移除一个太阳实体");
+                        
                     } catch (Exception e) {
-                        System.out.println("移除太阳实体时出错: " + e.getMessage());
+                        
                     }
                 }
             }
@@ -1801,9 +1787,9 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 为了以防万一，还删除世界中所有的太阳实体
             cleanupAllSunsInWorld();
             
-            System.out.println("太阳实体清理完成");
+            
         } catch (Exception e) {
-            System.out.println("清理太阳实体时出错: " + e.getMessage());
+            
             e.printStackTrace();
         }
     }
@@ -1847,9 +1833,9 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     
                 }
                 
-                System.out.println("太阳实体已被立即吸收和移除，剩余数量: " + suns.size());
+                
             } catch (Exception e) {
-                System.out.println("移除太阳实体时出错: " + e.getMessage());
+                
                 e.printStackTrace();
             }
         }
@@ -1871,7 +1857,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
             
             // 添加更详细的调试信息
-//            System.out.println("创建光束 - 起点: " + start + ", 角度: " + Math.toDegrees(angleRadians) + "°, 长度: " + beamLength);
+
             
             // 伤害检测逻辑
             Box beamBox = new Box(
@@ -1879,16 +1865,16 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 Math.max(start.x, end.x) + 1.5, Math.max(start.y, end.y) + 1.5, Math.max(start.z, end.z) + 1.5
             );
             
-//            System.out.println("光束碰撞箱: " + beamBox);
+
             
             List<PlayerEntity> players = this.getWorld().getEntitiesByClass(
                 PlayerEntity.class, beamBox, player -> !player.isSpectator() && player.isAlive()
             );
             
-//            System.out.println("检测到玩家数量: " + players.size());
+
             
             for (PlayerEntity player : players) {
-                System.out.println("对玩家 " + player.getName().getString() + " 造成阳光射线伤害");
+                
                 player.damage(this.getDamageSources().mobAttack(this), 16.0f);
                 player.setOnFireFor(10);
                 player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 200, 3));
@@ -1899,7 +1885,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 player.velocityModified = true;
             }
         } catch (Exception e) {
-            System.out.println("创建光束时出错: " + e.getMessage());
+            
         }
     }
 
@@ -1942,7 +1928,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             player.velocityModified = true;
         }
         
-        System.out.println("花瓣风暴造成伤害");
+        
     }
 
     @Override
@@ -1963,9 +1949,9 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         if (!this.getWorld().isClient()) {
             // 确保血条被创建
             if (this.bossBar == null) {
-                System.out.println("错误: BOSS血条未初始化!");
+                
             } else {
-                System.out.println("BOSS血条初始化成功");
+                
             }
         }
     }
@@ -1973,7 +1959,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     // 添加一个方法来主动触发阳光灼烧射线技能
     public void triggerSunbeamSkill() {
         if (sunbeamCooldown <= 0 && !isAnimationLocked) {
-            System.out.println("手动触发阳光灼烧射线技能");
+            
             setAnimation(AnimationType.SUNBEAM);
             sunbeamCooldown = 200; // 10秒冷却
             
@@ -1999,11 +1985,11 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 // 重置计数器
                 debugAttackCounter = 0;
                 
-                System.out.println("调试模式：已完成两次普通攻击，触发阳光射线技能");
+                
                 
                 // 如果当前仍然锁定，强行解除锁定
                 if (isAnimationLocked) {
-                    System.out.println("调试模式：强制解除动画锁定");
+                    
                     isAnimationLocked = false;
                     animationLockTimer = 0;
                 }
@@ -2014,24 +2000,24 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             }
             
             // 如果未达到计数要求，执行普通攻击
-            System.out.println("调试模式：执行普通攻击 " + (debugAttackCounter + 1) + "/2");
+            
             
             // 根据距离选择攻击方式
             if (distance <= 6.0) {
                 // 在6格以内执行近战攻击
-                System.out.println("执行近战攻击，距离: " + distance);
+                
                 
                 // 随机选择左手或右手攻击
                 if (this.random.nextBoolean()) {
-                    System.out.println("选择执行左手攻击，将在第21帧触发伤害");
+                    
                     setAnimation(AnimationType.LEFT_MELEE_ATTACK);
                 } else {
-                    System.out.println("选择执行右手攻击，将在第40帧触发伤害");
+                    
                     setAnimation(AnimationType.RIGHT_MELEE_ATTACK);
                 }
             } else {
                 // 在6格以外执行远程攻击
-                System.out.println("执行远程普通攻击");
+                
                 executeSimpleRangedAttack(target);
             }
             
@@ -2049,7 +2035,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             return;
         }
 
-        System.out.println("执行攻击模式 - 当前普通攻击计数: " + normalAttackCounter + ", 技能序列索引: " + currentSkillIndex + ", 半血状态: " + isHalfHealthTriggered);
+        
 
         // 检查是否需要释放特定技能
         if (normalAttackCounter >= 4) {
@@ -2098,19 +2084,19 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         // 根据距离选择攻击方式
         if (distance <= 6.0) {
             // 在6格以内执行近战攻击
-            System.out.println("执行近战攻击，距离: " + distance);
+            
             
             // 随机选择左手或右手攻击
             if (this.random.nextBoolean()) {
-                System.out.println("选择执行左手攻击，将在第21帧触发伤害");
+                
                 setAnimation(AnimationType.LEFT_MELEE_ATTACK);
             } else {
-                System.out.println("选择执行右手攻击，将在第40帧触发伤害");
+                
                 setAnimation(AnimationType.RIGHT_MELEE_ATTACK);
             }
         } else {
             // 在6格以外执行远程攻击
-            System.out.println("执行远程普通攻击");
+            
             executeSimpleRangedAttack(target);
         }
     }
@@ -2118,7 +2104,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     // 修改远程攻击方法，确保正确触发动画
     private void executeSimpleRangedAttack(LivingEntity target) {
         // 简化远程攻击执行逻辑，确保更可靠地设置动画状态
-        System.out.println("执行远程普通攻击，设置RANGED_ATTACK动画");
+        
         
         try {
             // 使用新的安全动画设置方法
@@ -2128,10 +2114,10 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             if (!this.getWorld().isClient()) {
                 // 同步状态到所有客户端
                 this.getWorld().sendEntityStatus(this, (byte)10);
-                System.out.println("成功设置远程攻击动画 - 将在第" + (RANGED_ATTACK_DURATION / 3) + "帧发射种子");
+                
             }
         } catch (Exception e) {
-            System.out.println("设置远程攻击动画时出错: " + e.getMessage());
+            
             e.printStackTrace();
         }
     }
@@ -2144,7 +2130,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         if (currentFrame == effectFrame) {
             LivingEntity target = this.getTarget();
             if (target != null) {
-                System.out.println("【远程普通攻击】发射种子 - 第" + currentFrame + "帧");
+                
                 
                 // 发射单个种子
                 fireSimpleSeed(target);
@@ -2208,7 +2194,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                             serverAnimType = AnimationType.values()[animationId];
                         }
                         
-                        System.out.println("客户端接收到动画状态更新: " + serverAnimType);
+                        
                         
                         // 更新动画状态
                         this.currentAnimation = serverAnimType;
@@ -2231,7 +2217,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                             case SUNBEAM:
                                 // 多次触发阳光射线动画，确保播放
                                 forceTriggerAnimation("controller", "sunbeam");
-                                System.out.println("客户端触发阳光射线动画(数据变更)");
+                                
                                 
                                 // 强制使用线程在短时间后再次触发动画，确保播放
                                 new Thread(() -> {
@@ -2239,7 +2225,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                                         Thread.sleep(100);
                                         // 再次检查状态，如果仍然是SUNBEAM，则再次触发
                                         if (currentAnimation == AnimationType.SUNBEAM) {
-                                            System.out.println("客户端延迟再次触发阳光射线动画");
+                                            
                                             triggerAnim("controller", "sunbeam");
                                         }
                                     } catch (Exception e) {
@@ -2252,7 +2238,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                                 break;
                             case IDLE:
                             default:
-                                System.out.println("客户端触发待机动画");
+                                
                                 forceTriggerAnimation("controller", "idle");
                                 break;
                         }
@@ -2260,7 +2246,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         // 记录动画触发时间
                         lastIdleSetTime = System.currentTimeMillis();
                     } catch (Exception e) {
-                        System.out.println("处理动画同步请求时出错: " + e.getMessage());
+                        
                         e.printStackTrace();
                     }
                 }
@@ -2270,7 +2256,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             else if (status == 20) {
                 if (this.getWorld().isClient()) {
                     try {
-                        System.out.println("客户端收到死亡动画同步请求");
+                        
                         // 强制设置死亡动画状态
                         this.isPlayingDeathAnimation = true;
                         this.currentAnimation = AnimationType.KUWEI_STORM;
@@ -2287,7 +2273,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         this.bodyYaw = this.getYaw();
                         this.headYaw = this.getYaw();
                     } catch (Exception e) {
-                        System.out.println("处理死亡动画同步请求时出错: " + e.getMessage());
+                        
                     }
                 }
                 return;
@@ -2298,15 +2284,15 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                     try {
                         // 获取服务器当前的动画帧数
                         int serverFrame = this.dataTracker.get(DATA_ANIMATION_ID);
-                        System.out.println("客户端收到服务端动画帧同步请求: 帧数=" + serverFrame);
+                        
                         
                         // 仅当帧数差异较大时才同步
                         if (Math.abs(serverFrame - this.animationTicks) > 20) {
-                            System.out.println("同步动画帧: 本地=" + this.animationTicks + ", 服务器=" + serverFrame);
+                            
                             this.animationTicks = serverFrame;
                         }
                     } catch (Exception e) {
-                        System.out.println("同步动画帧数据时出错: " + e.getMessage());
+                        
                     }
                 }
                 return;
@@ -2317,13 +2303,13 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 super.handleStatus(status);
             } catch (ClassCastException e) {
                 // 安全处理类型转换异常
-                System.out.println("处理实体状态时发生类型转换异常: " + e.getMessage());
+                
             } catch (Exception e) {
-                System.out.println("处理实体状态时出错: " + e.getMessage());
+                
             }
         } catch (Exception e) {
             // 捕获所有可能的异常，确保不会导致客户端崩溃
-            System.out.println("处理实体状态发生严重错误: " + e.getMessage());
+            
             e.printStackTrace();
         }
     }
@@ -2342,7 +2328,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 移除所有找到的太阳实体
             for (Entity entity : nearbyEntities) {
                 if (entity instanceof SunEntity sunEntity) {
-                    System.out.println("清理到一个遗留的太阳实体");
+                    
                     sunEntity.setAbsorbed(true);
                     sunEntity.discard();
                     sunEntity.remove(Entity.RemovalReason.DISCARDED);
@@ -2354,7 +2340,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     // 修改onRemoved方法，确保在实体被移除时清理
     @Override
     public void onRemoved() {
-        System.out.println("BOSS被移除，执行最终清理");
+        
         cleanupAllSunsInWorld(); // 添加这行
         cleanupSuns();
         super.onRemoved();
@@ -2370,7 +2356,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 byte animationId = this.dataTracker.get(ANIMATION_STATE);
                 if (animationId >= 0 && animationId < AnimationType.values().length) {
                     AnimationType animType = AnimationType.values()[animationId];
-                    System.out.println("数据追踪器检测到动画状态变更: " + animType);
+                    
                     
                     // 如果动画状态和当前不一致，进行更新
                     if (this.currentAnimation != animType) {
@@ -2382,7 +2368,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         if (animType == AnimationType.IDLE && 
                             previousAnimation != AnimationType.IDLE && 
                             System.currentTimeMillis() - lastIdleSetTime < 500) {
-                            System.out.println("防止重复触发IDLE状态，跳过此次触发");
+                            
                             return;
                         }
                         
@@ -2393,7 +2379,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         // 如果上一个动画是RIGHT_MELEE_ATTACK，强制设置这个动画进度为结束
                         // 这是为了解决右手攻击重复播放的问题
                         if (previousAnimation == AnimationType.RIGHT_MELEE_ATTACK) {
-                            System.out.println("强制结束右手攻击动画");
+                            
                             // 立即强制中断动画控制器，防止动画重复播放
                             try {
                                 // 向客户端发送特殊状态码，强制重置动画
@@ -2407,7 +2393,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                                     }
                                 }
                             } catch (Exception e) {
-                                System.out.println("强制结束动画时出错: " + e.getMessage());
+                                
                             }
                         }
                         
@@ -2423,24 +2409,24 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         switch(animType) {
                             case LEFT_MELEE_ATTACK:
                                 forceTriggerAnimation("controller", "left_attack");
-                                System.out.println("客户端触发左手攻击动画(数据变更)");
+                                
                                 break;
                             case RIGHT_MELEE_ATTACK:
                                 forceTriggerAnimation("controller", "right_attack");
-                                System.out.println("客户端触发右手攻击动画(数据变更)");
+                                
                                 break;
                             case RANGED_ATTACK:
                                 forceTriggerAnimation("controller", "ranged");
-                                System.out.println("客户端触发远程攻击动画(数据变更)");
+                                
                                 break;
                             case SEED_BARRAGE:
                                 forceTriggerAnimation("controller", "seed_barrage");
-                                System.out.println("客户端触发葵花籽弹幕动画(数据变更)");
+                                
                                 break;
                             case SUNBEAM:
                                 // 多次触发阳光射线动画，确保播放
                                 forceTriggerAnimation("controller", "sunbeam");
-                                System.out.println("客户端触发阳光射线动画(数据变更)");
+                                
                                 
                                 // 强制使用线程在短时间后再次触发动画，确保播放
                                 new Thread(() -> {
@@ -2448,7 +2434,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                                         Thread.sleep(100);
                                         // 再次检查状态，如果仍然是SUNBEAM，则再次触发
                                         if (currentAnimation == AnimationType.SUNBEAM) {
-                                            System.out.println("客户端延迟再次触发阳光射线动画");
+                                            
                                             triggerAnim("controller", "sunbeam");
                                         }
                                     } catch (Exception e) {
@@ -2458,22 +2444,22 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                                 break;
                             case PETAL_STORM:
                                 forceTriggerAnimation("controller", "petal_storm");
-                                System.out.println("客户端触发花瓣风暴动画(数据变更)");
+                                
                                 break;
                             case KUWEI_STORM:
                                 forceTriggerAnimation("controller", "kuwei");
-                                System.out.println("客户端触发死亡动画(数据变更)");
+                                
                                 break;
                             case IDLE:
                             default:
                                 forceTriggerAnimation("controller", "idle");
-                                System.out.println("客户端触发待机动画(数据变更)");
+                                
                                 break;
                         }
                     }
                 }
             } catch (Exception e) {
-                System.out.println("处理动画数据变更时出错: " + e.getMessage());
+                
             }
         }
     }
@@ -2485,7 +2471,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private void forceTriggerAnimation(String controllerName, String animName) {
         try {
             AnimationType animationType = getAnimation();
-            System.out.println("强制触发动画: " + animName + " (动画状态: " + animationType + ")");
+            
             
             // 如果尝试触发的是idle动画，而当前不是idle状态，先强制停止其他动画
             if ("idle".equals(animName) && animationType != AnimationType.IDLE) {
@@ -2524,7 +2510,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 }
             }
         } catch (Exception e) {
-            System.out.println("触发动画时出错: " + e.getMessage());
+            
             e.printStackTrace();
         }
     }

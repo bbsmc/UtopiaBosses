@@ -2,18 +2,13 @@ package lt.utopiabosses.entity;
 
 import lt.utopiabosses.registry.EntityRegistry;
 import lt.utopiabosses.registry.SoundRegistry;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.ai.control.MoveControl;
 import net.minecraft.entity.ai.goal.ActiveTargetGoal;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
 import net.minecraft.entity.ai.goal.LookAtEntityGoal;
 import net.minecraft.entity.ai.goal.MeleeAttackGoal;
-import net.minecraft.entity.ai.goal.WanderAroundFarGoal;
-import net.minecraft.entity.ai.goal.RevengeGoal;
 import net.minecraft.entity.ai.goal.SwimGoal;
 import net.minecraft.entity.ai.pathing.EntityNavigation;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
@@ -24,16 +19,12 @@ import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.mob.HostileEntity;
-import net.minecraft.entity.mob.ZombieEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.Util;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -43,10 +34,7 @@ import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.Animation;
 import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.keyframe.event.CustomInstructionKeyframeEvent;
-import software.bernie.geckolib.core.keyframe.event.SoundKeyframeEvent;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 import net.minecraft.entity.EntityDimensions;
@@ -54,8 +42,6 @@ import net.minecraft.entity.EntityPose;
 import java.util.List;
 import java.util.Random;
 import java.util.ArrayList;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.WorldView;
 import net.minecraft.entity.ai.pathing.MobNavigation;
 
 public class TreeBoss extends HostileEntity implements GeoEntity {
@@ -476,11 +462,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             } else {
                 animationTicks = 0;
             }
-            
-            // 添加调试日志
-            if (this.getWorld().getTime() % 20 == 0) {
-                System.out.println("TreeBoss状态: 攻击类型=" + attackTypeByte + ", 冷却=" + attackCooldown + ", 是否正在攻击=" + this.isAttacking);
-            }
+
         }
     }
     
@@ -504,7 +486,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 this.addVelocity(0, 0, 0);
                 
                 if (this.getWorld().getTime() % 40 == 0) { // 每2秒输出一次日志
-                    System.out.println("TreeBoss正在强制刷新移动动画状态");
                 }
             }
         }
@@ -1005,13 +986,11 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     event.getController().setAnimation(ATTACK_ANIM);
                 } else if (isMoving()) { // 使用isMoving方法代替直接检查速度
                     event.getController().setAnimation(WALK_ANIM);
-                    if (this.getWorld().isClient() && this.getWorld().getTime() % 100 == 0) {
-                        System.out.println("Animation Controller: TreeBoss正在移动");
-                    }
+                                    if (this.getWorld().isClient() && this.getWorld().getTime() % 100 == 0) {
+                }
                 } else {
                     event.getController().setAnimation(IDLE_ANIM);
                     if (this.getWorld().isClient() && this.getWorld().getTime() % 100 == 0) {
-                        System.out.println("Animation Controller: TreeBoss静止中");
                     }
                 }
                 
@@ -1027,7 +1006,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                     field.setAccessible(true);
                     instruction = (String) field.get(event);
                 } catch (Exception e) {
-                    System.out.println("获取关键帧指令失败: " + e.getMessage());
                     instruction = "melee_attack_hit"; // 默认为普通攻击命中
                 }
                 handleKeyframeEvent(instruction);
@@ -1035,105 +1013,146 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             .setSoundKeyframeHandler(event -> {
                 // 处理声音关键帧
                 try {
-                    if (getWorld().isClient()){
-                        MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_TREEBOSS_STOMPING_FEET_ID,null);
-                        MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_TREEBOSS_INSERT_BOTH_ARMS_INTO_THE_GROUND_SURFACE_ID,null);
-                        MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_TREEBOSS_ROAR_TOWARDS_THE_SKY_ID,null);
-                        MinecraftClient.getInstance().getSoundManager().stopSounds(SoundRegistry.ENTITY_TREEBOSS_GRAB_WITH_THE_LEFT_HAND_ID,null);
+                        // this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+                        //                 SoundRegistry.ENTITY_TREEBOSS_STOMPING_FEET, SoundCategory.HOSTILE, 2.0f, 1.0f);
+                        // this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+                        //                 SoundRegistry.ENTITY_TREEBOSS_INSERT_BOTH_ARMS_INTO_THE_GROUND_SURFACE, SoundCategory.HOSTILE, 2.0f, 1.0f);
+                        // this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+                        //                 SoundRegistry.ENTITY_TREEBOSS_ROAR_TOWARDS_THE_SKY, SoundCategory.HOSTILE, 2.0f, 1.0f);
+                        // this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+                        //                 SoundRegistry.ENTITY_TREEBOSS_GRAB_WITH_THE_LEFT_HAND, SoundCategory.HOSTILE, 2.0f, 1.0f);
 
-                        if (event.getKeyframeData().getSound().equals("skill_stomping_feet")) {
-                            // 使用ClientPlayer播放声音
-                            MinecraftClient.getInstance().getSoundManager().play(
-                                    PositionedSoundInstance.master(
-                                            SoundRegistry.ENTITY_TREEBOSS_STOMPING_FEET,
-                                            1.0F,  // 音调
-                                            1.0F   // 增大音量
-                                    )
-                            );
-                        }
-                        else if (event.getKeyframeData().getSound().equals("skill_grab_with_the_left_hand")) {
-                            // 使用ClientPlayer播放声音
-                            MinecraftClient.getInstance().getSoundManager().play(
-                                    PositionedSoundInstance.master(
-                                            SoundRegistry.ENTITY_TREEBOSS_GRAB_WITH_THE_LEFT_HAND,
-                                            1.0F,  // 音调
-                                            1.0F   // 增大音量
-                                    )
-                            );
-                        }
-                        else if (event.getKeyframeData().getSound().equals("skill_insert_both_arms_into_the_ground_surface")) {
-                            // 使用ClientPlayer播放声音
-                            MinecraftClient.getInstance().getSoundManager().play(
-                                    PositionedSoundInstance.master(
-                                            SoundRegistry.ENTITY_TREEBOSS_INSERT_BOTH_ARMS_INTO_THE_GROUND_SURFACE,
-                                            1.0F,  // 音调
-                                            1.0F   // 增大音量
-                                    )
-                            );
-                        }
-                        else if (event.getKeyframeData().getSound().equals("skill_roar_towards_the_sky")) {
-                            // 使用ClientPlayer播放声音
-                            MinecraftClient.getInstance().getSoundManager().play(
-                                    PositionedSoundInstance.master(
-                                            SoundRegistry.ENTITY_TREEBOSS_ROAR_TOWARDS_THE_SKY,
-                                            1.0F,  // 音调
-                                            1.0F   // 增大音量
-                                    )
-                            );
-                        }
-                        else if (event.getKeyframeData().getSound().equals("tree_run")) {
-                            // 使用ClientPlayer播放声音
-                            MinecraftClient.getInstance().getSoundManager().play(
-                                    PositionedSoundInstance.master(
-                                            SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
-                                            1.0F,  // 音调
-                                            1.0F   // 增大音量
-                                    )
-                            );
-                        }
-                        else if (event.getKeyframeData().getSound().equals("tree_run2")) {
-                            // 使用ClientPlayer播放声音
-                            MinecraftClient.getInstance().getSoundManager().play(
-                                    PositionedSoundInstance.master(
-                                            SoundRegistry.ENTITY_TREEBOSS_TREE_RUN2,
-                                            1.0F,  // 音调
-                                            1.0F   // 增大音量
-                                    )
-                            );
-                        }
-                        else if (event.getKeyframeData().getSound().equals("attack_left")) {
-                            // 使用ClientPlayer播放声音
-                            MinecraftClient.getInstance().getSoundManager().play(
-                                    PositionedSoundInstance.master(
-                                            SoundRegistry.ENTITY_TREEBOSS_ATTACK_LEFT,
-                                            1.0F,  // 音调
-                                            1.0F   // 增大音量
-                                    )
-                            );
-                        }
-                        else if (event.getKeyframeData().getSound().equals("attack_right")) {
-                            // 使用ClientPlayer播放声音
-                            MinecraftClient.getInstance().getSoundManager().play(
-                                    PositionedSoundInstance.master(
-                                            SoundRegistry.ENTITY_TREEBOSS_ATTACK_RIGHT,
-                                            1.0F,  // 音调
-                                            1.0F   // 增大音量
-                                    )
-                            );
-                        }
-                        else if (event.getKeyframeData().getSound().equals("die")) {
-                            // 使用ClientPlayer播放声音
-                            MinecraftClient.getInstance().getSoundManager().play(
-                                    PositionedSoundInstance.master(
-                                            SoundRegistry.ENTITY_TREEBOSS_DIE,
-                                            1.0F,  // 音调
-                                            1.0F   // 增大音量
-                                    )
-                            );
-                        }
+
+                        String soundName = event.getKeyframeData().getSound();
+                    if (soundName.equals("skill_stomping_feet")) {
+                        event.getAnimatable()
+                                .getWorld()
+                                .playSound(
+                                        event.getAnimatable().getX(),
+                                        event.getAnimatable().getY(),
+                                        event.getAnimatable().getZ(),
+                                        SoundRegistry.ENTITY_TREEBOSS_STOMPING_FEET,
+                                        SoundCategory.HOSTILE,
+                                        2.0F,
+                                        1.0F,
+                                        false
+                                );
                     }
+
+                        else if (soundName.equals("skill_grab_with_the_left_hand")) {
+                            event.getAnimatable()
+                                    .getWorld()
+                                    .playSound(
+                                        event.getAnimatable().getX(),
+                                        event.getAnimatable().getY(),
+                                        event.getAnimatable().getZ(),
+                                        SoundRegistry.ENTITY_TREEBOSS_GRAB_WITH_THE_LEFT_HAND,
+                                        SoundCategory.HOSTILE,
+                                        2.0F,
+                                        1.0F,
+                                        false
+                                    );
+                        }
+                        else if (soundName.equals("skill_insert_both_arms_into_the_ground_surface")) {
+                            event.getAnimatable()
+                                    .getWorld()
+                                    .playSound(
+                                        event.getAnimatable().getX(),
+                                        event.getAnimatable().getY(),
+                                        event.getAnimatable().getZ(),
+                                        SoundRegistry.ENTITY_TREEBOSS_INSERT_BOTH_ARMS_INTO_THE_GROUND_SURFACE,
+                                        SoundCategory.HOSTILE,
+                                        2.0F,
+                                        1.0F,
+                                        false
+                                    );
+                        }
+                        else if (soundName.equals("skill_roar_towards_the_sky")) {
+                            event.getAnimatable()
+                                    .getWorld()
+                                    .playSound(
+                                        event.getAnimatable().getX(),
+                                        event.getAnimatable().getY(),
+                                        event.getAnimatable().getZ(),
+                                        SoundRegistry.ENTITY_TREEBOSS_ROAR_TOWARDS_THE_SKY,
+                                        SoundCategory.HOSTILE,
+                                        2.0F,
+                                        1.0F,
+                                        false
+                                    );
+                        }
+                        else if (soundName.equals("tree_run")) {
+                            event.getAnimatable()
+                                    .getWorld()
+                                    .playSound(
+                                        event.getAnimatable().getX(),
+                                        event.getAnimatable().getY(),
+                                        event.getAnimatable().getZ(),
+                                        SoundRegistry.ENTITY_TREEBOSS_TREE_RUN,
+                                        SoundCategory.HOSTILE,
+                                        2.0F,
+                                        1.0F,
+                                        false
+                                    );
+                        }
+                        else if (soundName.equals("tree_run2")) {
+                            event.getAnimatable()
+                                    .getWorld()
+                                    .playSound(
+                                        event.getAnimatable().getX(),
+                                        event.getAnimatable().getY(),
+                                        event.getAnimatable().getZ(),
+                                        SoundRegistry.ENTITY_TREEBOSS_TREE_RUN2,
+                                        SoundCategory.HOSTILE,
+                                        2.0F,
+                                        1.0F,
+                                        false
+                                    );
+                        }
+                        else if (soundName.equals("attack_left")) {
+                            event.getAnimatable()
+                                    .getWorld()
+                                    .playSound(
+                                        event.getAnimatable().getX(),
+                                        event.getAnimatable().getY(),
+                                        event.getAnimatable().getZ(),
+                                        SoundRegistry.ENTITY_TREEBOSS_ATTACK_LEFT,
+                                        SoundCategory.HOSTILE,
+                                        2.0F,
+                                        1.0F,
+                                        false
+                                    );
+                        }
+                        else if (soundName.equals("attack_right")) {
+                            event.getAnimatable()
+                                    .getWorld()
+                                    .playSound(
+                                        event.getAnimatable().getX(),
+                                        event.getAnimatable().getY(),
+                                        event.getAnimatable().getZ(),
+                                        SoundRegistry.ENTITY_TREEBOSS_ATTACK_RIGHT,
+                                        SoundCategory.HOSTILE,
+                                        2.0F,
+                                        1.0F,
+                                        false
+                                    );
+                        }
+                        else if (soundName.equals("die")) {
+                            event.getAnimatable()
+                                    .getWorld()
+                                    .playSound(
+                                        event.getAnimatable().getX(),
+                                        event.getAnimatable().getY(),
+                                        event.getAnimatable().getZ(),
+                                        SoundRegistry.ENTITY_TREEBOSS_DIE,
+                                        SoundCategory.HOSTILE,
+                                        2.0F,
+                                        1.0F,
+                                        false
+                                    );
+                        }
+
                 } catch (Exception e) {
-                    System.out.println("获取声音关键帧数据失败: " + e.getMessage());
                 }
             })
         );
@@ -1328,7 +1347,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             
             // 如果击中了上半身扩展碰撞箱
             if (upperBodyHitbox.raycast(eyePos, targetVec).isPresent()) {
-                System.out.println("TreeBoss上半身被击中!");
                 hitUpperBody = true;
             }
         }
@@ -1393,7 +1411,6 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
      */
     public static void setDebugFixedSkill(SkillType skillType) {
         DEBUG_FIXED_SKILL = skillType;
-        System.out.println("TreeBoss调试模式: " + (skillType == null ? "随机技能" : skillType));
     }
 
     /**
@@ -1667,7 +1684,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
 //        float height = 3.5F * SIZE_SCALE; // 增加高度以覆盖整个模型
 //
 //        if (this.getWorld().isClient() && this.getWorld().getTime() % 200 == 0) {
-//            System.out.println("TreeBoss碰撞箱尺寸 - 宽度: " + width + ", 高度: " + height);
+
 //        }
 //
 //        return EntityDimensions.changing(width, height);
