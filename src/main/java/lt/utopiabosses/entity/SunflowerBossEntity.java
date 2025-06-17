@@ -1066,11 +1066,12 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                                     getWorld().playSound(null, getBlockPos(),
                                             SoundRegistry.ENTITY_SUNFLOWER_LASER_CANNON,
                                             getSoundCategory(), 1.0F, 1.0F);
-                                }else if (event.getKeyframeData().getSound().equals("flower_lade_storm")) {
-                                    getWorld().playSound(null, getBlockPos(),
-                                            SoundRegistry.ENTITY_SUNFLOWER_FLOWER_LADE_STORM,
-                                            getSoundCategory(), 1.0F, 1.0F);
                                 }
+                            } else if (event.getKeyframeData().getSound().equals("flower_lade_storm")) {
+                                // 使用ClientPlayer播放声音
+                                getWorld().playSound(null, getBlockPos(),
+                                        SoundRegistry.ENTITY_SUNFLOWER_FLOWER_LADE_STORM,
+                                        getSoundCategory(), 1.0F, 1.0F);
                             }
                         })
         );
