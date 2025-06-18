@@ -48,34 +48,6 @@ public class CropHarvestHandler {
             }
         });
         
-        // 注册攻击实体事件，用于处理盾牌格挡
-        AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
-            // 检查被攻击的实体是否正在格挡
-            if (entity instanceof LivingEntity target) {
-                // 检查目标是否在使用向日葵盾牌格挡
-                if (target.isUsingItem() && target.getActiveItem().getItem() instanceof SunflowerShieldItem) {
-                    // 检查是否面向攻击者（格挡方向判断）
-                    if (isBlockingAttack(target, player)) {
-                        // 格挡成功，消耗耐久度
-                        ItemStack shield = target.getActiveItem();
-                        if (!world.isClient) {
-                            // 消耗1点耐久度
-                            shield.damage(1, target, (livingEntity) -> {
-                                livingEntity.sendEquipmentBreakStatus(target.getActiveHand() == Hand.MAIN_HAND ? 
-                                    EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
-                            });
-                        }
-                        
-                        // 播放格挡音效
-                        world.playSound(null, target.getX(), target.getY(), target.getZ(),
-                            net.minecraft.sound.SoundEvents.ITEM_SHIELD_BLOCK, 
-                            net.minecraft.sound.SoundCategory.PLAYERS, 1.0F, 1.0F);
-                    }
-                }
-            }
-            
-            return ActionResult.PASS;
-        });
     }
     
     // 检查方块是否是成熟的农作物

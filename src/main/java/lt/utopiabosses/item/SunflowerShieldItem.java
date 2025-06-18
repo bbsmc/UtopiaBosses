@@ -98,7 +98,8 @@ public class SunflowerShieldItem extends ShieldItem implements GeoItem {
     public void usageTick(World world, LivingEntity user, ItemStack stack, int remainingUseTicks) {
         // 确保使用时的行为与原版一致
         if (!world.isClient && user instanceof PlayerEntity) {
-            // 这里可以添加格挡时的特殊效果
+            // 格挡时的耐久损失通过SunflowerShieldMixin处理
+            // 这里可以添加其他格挡时的特殊效果
         }
     }
 

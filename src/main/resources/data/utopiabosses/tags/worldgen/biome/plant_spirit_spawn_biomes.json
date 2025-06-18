@@ -13,6 +13,8 @@
     "minecraft:bamboo_jungle",
     "minecraft:jungle",
     "minecraft:sparse_jungle",
+    "minecraft:plains",
+    "minecraft:sunflower_plains",
     {
       "id": "#c:forest",
       "required": false
@@ -27,6 +29,10 @@
     },
     {
       "id": "#c:tree_jungle",
+      "required": false
+    },
+    {
+      "id": "#c:plains",
       "required": false
     }
   ]

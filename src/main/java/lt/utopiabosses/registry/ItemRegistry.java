@@ -50,7 +50,7 @@ public class ItemRegistry {
     // 剑
     public static final SunflowerSwordItem SUNFLOWER_SWORD = registerItem("sunflower_sword", new SunflowerSwordItem(new FabricItemSettings().maxDamage(1600).fireproof()));
     // 盾牌
-    public static final SunflowerShieldItem SUNFLOWER_SHIELD = registerItem("sunflower_shield", new SunflowerShieldItem(new FabricItemSettings().maxDamage(336).fireproof()));
+    public static final SunflowerShieldItem SUNFLOWER_SHIELD = registerItem("sunflower_shield", new SunflowerShieldItem(new FabricItemSettings().maxDamage(674).fireproof()));
     // 树灵之杖
     public static final TreeSpiritStaffItem TREE_SPIRIT_STAFF = registerItem("tree_spirit_staff", 
         new TreeSpiritStaffItem(new FabricItemSettings().maxDamage(2000)));
