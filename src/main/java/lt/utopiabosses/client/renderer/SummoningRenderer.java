@@ -1,17 +1,12 @@
 package lt.utopiabosses.client.renderer;
 
-import java.util.Random;
-
 import lt.utopiabosses.client.model.SummoningModel;
 import lt.utopiabosses.entity.SummoningEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.entity.EntityRendererFactory;
-import net.minecraft.text.Text;
-import software.bernie.geckolib.renderer.GeoEntityRenderer;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.util.math.MatrixStack;
 import org.joml.Quaternionf;
+import software.bernie.geckolib.renderer.GeoEntityRenderer;
 
 public class SummoningRenderer extends GeoEntityRenderer<SummoningEntity> {
     public SummoningRenderer(EntityRendererFactory.Context ctx) {

@@ -54,6 +54,6 @@
     }
   },
   "textures": {
-    "particle": "item/texture"
+    "particle": "item/sunflower_shield"
   }
 }

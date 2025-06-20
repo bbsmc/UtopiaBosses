@@ -6,7 +6,6 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.ShieldItem;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.Hand;
 import net.minecraft.util.TypedActionResult;
 import net.minecraft.util.UseAction;
@@ -14,8 +13,12 @@ import net.minecraft.world.World;
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
 import software.bernie.geckolib.animatable.client.RenderProvider;
+import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
+import software.bernie.geckolib.core.animation.AnimationController;
+import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.function.Consumer;
@@ -52,8 +55,28 @@ public class SunflowerShieldItem extends ShieldItem implements GeoItem {
     }
 
     @Override
+    public boolean isPerspectiveAware() {
+        return true;
+    }
+
+    @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllerRegistrar) {
-        // 这里可以添加动画控制器，比如格挡动画
+        controllerRegistrar.add(new AnimationController<>(this, "controller", 0, animationState -> {
+            // 使用Perspective-Aware检测是否手持
+            Object renderPerspective = animationState.getData(DataTickets.ITEM_RENDER_PERSPECTIVE);
+            
+            // 只有在第一人称或第三人称手持视角时才播放动画
+            if (renderPerspective != null && 
+                (renderPerspective.toString().contains("FIRST_PERSON") || 
+                 renderPerspective.toString().contains("THIRD_PERSON"))) {
+                // 手持时播放旋转动画
+                animationState.getController().setAnimation(RawAnimation.begin().thenLoop("xuanzhuan"));
+                return PlayState.CONTINUE;
+            }
+            
+            // 其他情况（GUI、物品栏等）停止动画
+            return PlayState.STOP;
+        }));
     }
 
     @Override

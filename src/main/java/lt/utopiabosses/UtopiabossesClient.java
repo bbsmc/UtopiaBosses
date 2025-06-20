@@ -1,23 +1,16 @@
 package lt.utopiabosses;
 
-import lt.utopiabosses.client.renderer.SunflowerBossRenderer;
-import lt.utopiabosses.client.renderer.SunflowerSeedRenderer;
-import lt.utopiabosses.client.renderer.TreeBossRenderer;
-import lt.utopiabosses.client.renderer.LittleTreeManRenderer;
-import lt.utopiabosses.client.renderer.SummoningRenderer;
-import lt.utopiabosses.client.renderer.PlantSpiritRenderer;
+import lt.utopiabosses.client.renderer.*;
 import lt.utopiabosses.client.renderer.block.NatureAltarBlockEntityRenderer;
-import lt.utopiabosses.client.renderer.item.*;
-import lt.utopiabosses.registry.EntityRegistry;
 import lt.utopiabosses.registry.BlockEntityRegistry;
 import lt.utopiabosses.registry.BlockRegistry;
-import lt.utopiabosses.registry.ItemRegistry;
+import lt.utopiabosses.registry.EntityRegistry;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.minecraft.client.render.RenderLayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

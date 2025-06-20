@@ -17,6 +17,38 @@
 					}
 				}
 			}
+		},
+		"judun": {
+			"loop": "hold_on_last_frame",
+			"animation_length": 0.2083,
+			"bones": {
+				"bone": {
+					"rotation": {
+						"0.0": {
+							"vector": [-12.5, 0, 0]
+						},
+						"0.0833": {
+							"vector": [-7.5, 0, 0]
+						}
+					},
+					"position": {
+						"0.0": {
+							"vector": [-15, -9, 7]
+						},
+						"0.0833": {
+							"vector": [-10, -8, 5]
+						}
+					},
+					"scale": {
+						"0.0833": {
+							"vector": [1, 1, 1]
+						},
+						"0.2083": {
+							"vector": [1.5, 1.5, 1]
+						}
+					}
+				}
+			}
 		}
 	},
 	"geckolib_format_version": 2

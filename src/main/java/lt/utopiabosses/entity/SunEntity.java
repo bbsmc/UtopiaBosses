@@ -1,13 +1,12 @@
 package lt.utopiabosses.entity;
 
+import lt.utopiabosses.registry.ItemRegistry;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.ItemEntity;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.world.World;
-import lt.utopiabosses.registry.ItemRegistry;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.World;
 
 public class SunEntity extends ItemEntity {
     private boolean absorbed = false;

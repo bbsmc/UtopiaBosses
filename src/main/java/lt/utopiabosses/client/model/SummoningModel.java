@@ -4,7 +4,6 @@ import lt.utopiabosses.Utopiabosses;
 import lt.utopiabosses.entity.SummoningEntity;
 import net.minecraft.util.Identifier;
 import software.bernie.geckolib.model.DefaultedEntityGeoModel;
-import software.bernie.geckolib.model.GeoModel;
 
 public class SummoningModel extends DefaultedEntityGeoModel<SummoningEntity> {
 

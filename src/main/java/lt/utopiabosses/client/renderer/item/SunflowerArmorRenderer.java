@@ -5,7 +5,6 @@ import lt.utopiabosses.item.SunflowerArmorItem;
 import net.minecraft.util.Identifier;
 import software.bernie.geckolib.model.DefaultedItemGeoModel;
 import software.bernie.geckolib.renderer.GeoArmorRenderer;
-import software.bernie.geckolib.renderer.layer.AutoGlowingGeoLayer;
 
 public class SunflowerArmorRenderer extends GeoArmorRenderer<SunflowerArmorItem> {
     

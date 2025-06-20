@@ -7,8 +7,6 @@ import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
 
-import java.util.Collections;
-
 public class BlockEntityRegistry {
     // 使用volatile确保线程可见性
     public static volatile BlockEntityType<NatureAltarBlockEntity> NATURE_ALTAR_BLOCK_ENTITY;
