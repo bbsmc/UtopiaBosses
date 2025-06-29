@@ -35,18 +35,18 @@ public class ItemRegistry {
 
 
     // 铲子
-    public static final SunflowerShovelItem SUNFLOWER_SHOVEL = registerItem("sunflower_shovel", new SunflowerShovelItem(new FabricItemSettings().maxDamage(1561).fireproof()));
+    public static final SunflowerShovelItem SUNFLOWER_SHOVEL = registerItem("sunflower_shovel", new SunflowerShovelItem(new FabricItemSettings().fireproof()));
     // 斧子
-    public static final SunflowerAxeItem SUNFLOWER_AXE = registerItem("sunflower_axe", new SunflowerAxeItem(new FabricItemSettings().maxDamage(1561).fireproof()));
+    public static final SunflowerAxeItem SUNFLOWER_AXE = registerItem("sunflower_axe", new SunflowerAxeItem(new FabricItemSettings().fireproof()));
     // 加特林
     public static final SunflowerGatlingItem SUNFLOWER_GATLING = registerItem("sunflower_gatling", 
         new SunflowerGatlingItem(new FabricItemSettings()
             .maxDamage(1561)
             .fireproof()));
     // 锄子
-    public static final SunflowerHoeItem SUNFLOWER_HOE = registerItem("sunflower_hoe", new SunflowerHoeItem(new FabricItemSettings().maxDamage(1561).fireproof()));
+    public static final SunflowerHoeItem SUNFLOWER_HOE = registerItem("sunflower_hoe", new SunflowerHoeItem(new FabricItemSettings().fireproof()));
     // 镐子
-    public static final SunflowerPickaxeItem SUNFLOWER_PICKAXE = registerItem("sunflower_pickaxe", new SunflowerPickaxeItem(new FabricItemSettings().maxDamage(1561).fireproof()));
+    public static final SunflowerPickaxeItem SUNFLOWER_PICKAXE = registerItem("sunflower_pickaxe", new SunflowerPickaxeItem(new FabricItemSettings().fireproof()));
     // 剑
     public static final SunflowerSwordItem SUNFLOWER_SWORD = registerItem("sunflower_sword", new SunflowerSwordItem(new FabricItemSettings().maxDamage(1600).fireproof()));
     // 盾牌

@@ -29,6 +29,9 @@ public class SunflowerShieldItem extends ShieldItem implements GeoItem {
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
 
+    private static final RawAnimation ROTATE_ANIM = RawAnimation.begin().thenLoop("xuanzhuan");
+
+
     public SunflowerShieldItem(Settings settings) {
         super(settings);
         SingletonGeoAnimatable.registerSyncedAnimatable(this);
@@ -62,36 +65,8 @@ public class SunflowerShieldItem extends ShieldItem implements GeoItem {
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllerRegistrar) {
         controllerRegistrar.add(new AnimationController<>(this, "controller", 0, animationState -> {
-            // 简化动画逻辑，修复光影兼容性问题
-            // 检查渲染视角，但使用更宽松的条件
-            Object renderPerspective = animationState.getData(DataTickets.ITEM_RENDER_PERSPECTIVE);
-            
-            if (renderPerspective != null) {
-                String perspectiveStr = renderPerspective.toString();
-                
-                // 在手持状态下播放旋转动画（包括第一人称和第三人称）
-                // 排除GUI和物品展示框等情况
-                if (perspectiveStr.contains("FIRST_PERSON") || 
-                    perspectiveStr.contains("THIRD_PERSON") ||
-                    perspectiveStr.contains("FIXED") ||  // 添加FIXED支持，提高兼容性
-                    perspectiveStr.contains("HAND")) {   // 添加HAND支持，提高兼容性
-                    
-                    // 播放循环旋转动画
-                    animationState.getController().setAnimation(RawAnimation.begin().thenLoop("xuanzhuan"));
-                    return PlayState.CONTINUE;
-                }
-                
-                // 只在明确的GUI环境下停止动画
-                if (perspectiveStr.contains("GUI") || 
-                    perspectiveStr.contains("GROUND") ||
-                    perspectiveStr.contains("ITEM_FRAME")) {
-                    return PlayState.STOP;
-                }
-            }
-            
-            // 默认情况下播放动画，确保光影环境下的兼容性
-            // 这可以解决某些光影包改变渲染视角检测的问题
-            animationState.getController().setAnimation(RawAnimation.begin().thenLoop("xuanzhuan"));
+            // 始终播放旋转动画
+            animationState.getController().setAnimation(ROTATE_ANIM);
             return PlayState.CONTINUE;
         }));
     }
