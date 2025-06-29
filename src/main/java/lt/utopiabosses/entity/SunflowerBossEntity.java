@@ -780,8 +780,11 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     }
 
     private void startPetalStormSkill() {
-        // 移除对当前动画状态的检查，允许从任何状态切换到花瓣风暴
-        // 这对于半血触发特别重要
+        // 检查当前动画状态，只能从IDLE状态开始
+        if (this.currentAnimation != AnimationType.IDLE) {
+            
+            return;
+        }
         
         
         
@@ -789,10 +792,6 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         if (this.currentAnimation == AnimationType.SUNBEAM) {
             cleanupSuns();
         }
-        
-        // 强制解除动画锁定
-        this.isAnimationLocked = false;
-        this.animationLockTimer = 0;
         
         // 设置新动画
         setAnimation(AnimationType.PETAL_STORM);
@@ -1135,35 +1134,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         // 正常伤害处理
         boolean damaged = super.damage(source, amount);
         
-        // 检查是否到达半血
-        if (damaged && !isHalfHealthTriggered && this.getHealth() <= this.getMaxHealth() / 2) {
-            // 半血首次触发 - 立即处理，不再等待下一个tick
-            isHalfHealthTriggered = true;
-            
-            
-            // 如果当前正在执行阳光射线技能，先中断它
-            if (this.currentAnimation == AnimationType.SUNBEAM) {
-                
-                cleanupSuns();
-                // 强制结束当前动画
-                this.animationTicks = getAnimationDuration(AnimationType.SUNBEAM);
-                // 解除动画锁定，允许切换到花瓣风暴
-                this.isAnimationLocked = false;
-                this.animationLockTimer = 0;
-            }
-            
-            // 直接开始花瓣风暴技能，不等待IDLE状态
-            try {
-                // 短暂延迟一帧，确保资源清理完成
-                if (!this.getWorld().isClient()) {
-                    startPetalStormSkill();
-                    normalAttackCounter = 0; // 重置攻击计数
-                    currentSkillIndex = 0;   // 重置技能序列
-                }
-            } catch (Exception e) {
-                
-            }
-        }
+
         
         // 只在受到大量伤害时才中断阳光射线技能
         if (damaged && this.currentAnimation == AnimationType.SUNBEAM && amount >= 10.0f && !isHalfHealthTriggered) {
@@ -1330,22 +1301,6 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         }
     }
 
-    // 添加一个方法，向附近的玩家发送消息
-    private void sendMessageToNearbyPlayers(String message) {
-        if (this.getWorld() instanceof ServerWorld) {
-            // 获取64格范围内的所有玩家
-            List<PlayerEntity> nearbyPlayers = this.getWorld().getEntitiesByClass(
-                PlayerEntity.class, 
-                this.getBoundingBox().expand(64.0), 
-                player -> !player.isSpectator()
-            );
-            
-            // 向每个玩家发送消息
-            for (PlayerEntity player : nearbyPlayers) {
-                player.sendMessage(Text.of(message), false);
-            }
-        }
-    }
 
     @Override
     public void writeCustomDataToNbt(NbtCompound nbt) {
@@ -2042,41 +1997,26 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 重置普通攻击计数
             normalAttackCounter = 0;
             
-            // 技能序列处理
-            if (this.getHealth() <= this.getMaxHealth() / 2) {
-                // 半血以下的技能序列: 种子弹幕 -> 阳光灼烧 -> 花瓣风暴 -> 循环
-                if (!isHalfHealthTriggered) {
-                    isHalfHealthTriggered = true;
+            // 技能序列处理 - 包含花瓣风暴的完整技能循环
+            switch(currentSkillIndex) {
+                case 0:
+                    startSeedBarrageSkill();
+                    currentSkillIndex = 1;
+                    break;
+                case 1:
+                    startSunbeamSkill();
+                    currentSkillIndex = 2;
+                    break;
+                case 2:
                     startPetalStormSkill();
+                    currentSkillIndex = 0; // 循环回到种子弹幕
+                    break;
+                default:
+                    // 防止索引异常，重置为0
                     currentSkillIndex = 0;
-                } else {
-                    switch(currentSkillIndex) {
-                        case 0:
-                            startSeedBarrageSkill();
-                            currentSkillIndex = 1;
-                            break;
-                        case 1:
-                            startSunbeamSkill();
-                            currentSkillIndex = 2;
-                            break;
-                        case 2:
-                            startPetalStormSkill();
-                            currentSkillIndex = 0;
-                            break;
-                    }
-                }
-            } else {
-                // 正常血量的技能序列: 种子弹幕 -> 阳光灼烧 -> 循环
-                switch(currentSkillIndex) {
-                    case 0:
-                        startSeedBarrageSkill();
-                        currentSkillIndex = 1;
-                        break;
-                    case 1:
-                        startSunbeamSkill();
-                        currentSkillIndex = 0;
-                        break;
-                }
+                    startSeedBarrageSkill();
+                    currentSkillIndex = 1;
+                    break;
             }
             return;
         }
@@ -2460,6 +2400,23 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 }
             } catch (Exception e) {
                 
+            }
+        }
+    }
+    
+    // 添加一个方法，向附近的玩家发送消息
+    private void sendMessageToNearbyPlayers(String message) {
+        if (this.getWorld() instanceof ServerWorld) {
+            // 获取64格范围内的所有玩家
+            List<PlayerEntity> nearbyPlayers = this.getWorld().getEntitiesByClass(
+                PlayerEntity.class, 
+                this.getBoundingBox().expand(64.0), 
+                player -> !player.isSpectator()
+            );
+            
+            // 向每个玩家发送消息
+            for (PlayerEntity player : nearbyPlayers) {
+                player.sendMessage(Text.of(message), false);
             }
         }
     }

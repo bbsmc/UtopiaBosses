@@ -59,6 +59,9 @@ public class ItemRegistry {
     public static final BlockItem NATURE_ALTAR = registerItem("nature_altar",
             new BlockItem(BlockRegistry.NATURE_ALTAR, new FabricItemSettings()));
 
+    public static final BlockItem SUNFLOWER_ALTAR = registerItem("sunflower_altar",
+            new BlockItem(BlockRegistry.SUNFLOWER_ALTAR, new FabricItemSettings()));
+
     // 太阳
     public static final BlockItem SUN_ITEM = registerItem("sun",
             new BlockItem(BlockRegistry.SUN, new FabricItemSettings()));
@@ -136,6 +139,7 @@ public class ItemRegistry {
             content.add(SUNFLOWER_SHIELD);
             content.add(TREE_SPIRIT_STAFF);
             content.add(NATURE_ALTAR);
+            content.add(SUNFLOWER_ALTAR);
             content.add(NATURAL_ESSENCE);
             content.add(LIGHT_SEED_CRYSTAL);
             content.add(SUNFLOWER_SEED);

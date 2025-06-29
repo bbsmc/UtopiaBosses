@@ -1,9 +1,9 @@
 {
+	"format_version": "1.21.6",
 	"credit": "Made with Blockbench",
 	"texture_size": [64, 64],
 	"textures": {
-		"1": "utopiabosses:block/nature_altar",
-		"particle": "utopiabosses:block/nature_altar"
+		"1": "block/texture"
 	},
 	"elements": [
 		{

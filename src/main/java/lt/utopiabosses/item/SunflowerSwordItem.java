@@ -24,6 +24,9 @@ import software.bernie.geckolib.animatable.client.RenderProvider;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.util.GeckoLibUtil;
+import net.minecraft.client.item.TooltipContext;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
 import java.util.List;
 import java.util.Random;
@@ -178,6 +181,42 @@ public class SunflowerSwordItem extends Item implements GeoItem {
                 }
             }
         }
+    }
+
+    @Override
+    public void appendTooltip(ItemStack stack, World world, List<Text> tooltip, TooltipContext context) {
+        super.appendTooltip(stack, world, tooltip, context);
+        
+        // 添加空行分隔
+        tooltip.add(Text.empty());
+        
+        // 添加武器信息标题
+        tooltip.add(Text.literal("§6═══ 向日葵剑 ═══").formatted(Formatting.GOLD));
+        
+        // 添加攻击属性描述
+        tooltip.add(Text.literal("§7攻击力: §c7 §7(+6)").formatted(Formatting.GRAY));
+        tooltip.add(Text.literal("§7攻击速度: §e1.6").formatted(Formatting.GRAY));
+        
+        // 添加空行分隔
+        tooltip.add(Text.empty());
+        
+        // 添加特殊技能标题
+        tooltip.add(Text.literal("§e⚡ 阳光冲击波").formatted(Formatting.YELLOW));
+        tooltip.add(Text.literal("§7攻击时有 §620% §7几率触发").formatted(Formatting.GRAY));
+        tooltip.add(Text.literal("§7效果:").formatted(Formatting.GRAY));
+        tooltip.add(Text.literal("  §8• §7对 §c5格 §7范围内敌人造成 §c最多10点 §7伤害").formatted(Formatting.GRAY));
+        tooltip.add(Text.literal("  §8• §7施加 §6发光 §7效果").formatted(Formatting.GRAY));
+        tooltip.add(Text.literal("  §8• §7施加 §c阳光灼烧 §7效果 (3秒)").formatted(Formatting.GRAY));
+        tooltip.add(Text.literal("  §8• §7伤害随距离衰减").formatted(Formatting.GRAY));
+        
+        // 添加空行分隔
+        tooltip.add(Text.empty());
+        
+        // 添加修复信息
+        tooltip.add(Text.literal("§9🔧 修复材料: §b光籽结晶").formatted(Formatting.BLUE));
+        
+        // 添加装饰性分隔线
+        tooltip.add(Text.literal("§6═══════════════").formatted(Formatting.GOLD));
     }
 
     @Override

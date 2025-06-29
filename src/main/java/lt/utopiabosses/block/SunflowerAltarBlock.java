@@ -1,6 +1,6 @@
 package lt.utopiabosses.block;
 
-import lt.utopiabosses.block.entity.NatureAltarBlockEntity;
+import lt.utopiabosses.block.entity.SunflowerAltarBlockEntity;
 import lt.utopiabosses.registry.BlockEntityRegistry;
 import lt.utopiabosses.registry.EntityRegistry;
 import net.minecraft.block.*;
@@ -22,11 +22,11 @@ import net.minecraft.world.World;
 import net.minecraft.world.biome.Biome;
 import org.jetbrains.annotations.Nullable;
 
-public class NatureAltarBlock extends HorizontalFacingBlock implements BlockEntityProvider {
+public class SunflowerAltarBlock extends HorizontalFacingBlock implements BlockEntityProvider {
     // 属性：是否已放置向日葵自然精华
     public static final BooleanProperty HAS_ESSENCE = BooleanProperty.of("has_essence");
 
-    public NatureAltarBlock(Settings settings) {
+    public SunflowerAltarBlock(Settings settings) {
         super(settings);
         // 设置默认状态
         setDefaultState(getDefaultState().with(FACING, net.minecraft.util.math.Direction.NORTH).with(HAS_ESSENCE, false));
@@ -57,14 +57,13 @@ public class NatureAltarBlock extends HorizontalFacingBlock implements BlockEnti
         ItemStack heldItem = player.getStackInHand(hand);
         
         // 获取方块实体
-        if (world.getBlockEntity(pos) instanceof NatureAltarBlockEntity blockEntity) {
-            
-            // 如果祭坛上没有精华，且玩家手持树灵精华
-            if (!state.get(HAS_ESSENCE) && heldItem.isOf(lt.utopiabosses.registry.ItemRegistry.TREE_SPIRIT_ESSENCE)) {
+        if (world.getBlockEntity(pos) instanceof SunflowerAltarBlockEntity blockEntity) {
+            // 如果祭坛上没有精华，且玩家手持向日葵自然精华
+            if (!state.get(HAS_ESSENCE) && heldItem.isOf(lt.utopiabosses.registry.ItemRegistry.SUNFLOWER_NATURAL_ESSENCE)) {
                 // 更新方块状态
                 world.setBlockState(pos, state.with(HAS_ESSENCE, true));
                 blockEntity.setHasEssence(true);
-                blockEntity.setEssenceType(2); // 树灵精华
+                blockEntity.setEssenceType(1); // 向日葵精华
                 
                 // 消耗物品
                 if (!player.isCreative()) {
@@ -116,8 +115,8 @@ public class NatureAltarBlock extends HorizontalFacingBlock implements BlockEnti
                     int essenceType = blockEntity.getEssenceType();
                     ItemStack essenceItem = ItemStack.EMPTY;
                     
-                    if (essenceType == 2) {
-                        essenceItem = new ItemStack(lt.utopiabosses.registry.ItemRegistry.TREE_SPIRIT_ESSENCE);
+                    if (essenceType == 1) {
+                        essenceItem = new ItemStack(lt.utopiabosses.registry.ItemRegistry.SUNFLOWER_NATURAL_ESSENCE);
                     }
                     
                     if (!essenceItem.isEmpty()) {
@@ -143,15 +142,15 @@ public class NatureAltarBlock extends HorizontalFacingBlock implements BlockEnti
     @Nullable
     @Override
     public BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
-        return new NatureAltarBlockEntity(pos, state);
+        return new SunflowerAltarBlockEntity(pos, state);
     }
 
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type) {
-        if (type == BlockEntityRegistry.NATURE_ALTAR_BLOCK_ENTITY) {
-            return (BlockEntityTicker<T>) ((world1, pos, state1, blockEntity) -> 
-                NatureAltarBlockEntity.tick(world1, pos, state1, (NatureAltarBlockEntity) blockEntity));
+        if (type == BlockEntityRegistry.SUNFLOWER_ALTAR_BLOCK_ENTITY) {
+            return (BlockEntityTicker<T>) ((world1, pos, state1, blockEntity) ->
+                    SunflowerAltarBlockEntity.tick(world1, pos, state1, (SunflowerAltarBlockEntity) blockEntity));
         }
         return null;
     }
@@ -160,12 +159,12 @@ public class NatureAltarBlock extends HorizontalFacingBlock implements BlockEnti
     public void onStateReplaced(BlockState state, World world, BlockPos pos, BlockState newState, boolean moved) {
         if (!state.isOf(newState.getBlock())) {
             // 检查是否有精华需要掉落
-            if (state.get(HAS_ESSENCE) && world.getBlockEntity(pos) instanceof NatureAltarBlockEntity blockEntity) {
+            if (state.get(HAS_ESSENCE) && world.getBlockEntity(pos) instanceof SunflowerAltarBlockEntity blockEntity) {
                 int essenceType = blockEntity.getEssenceType();
                 ItemStack essenceItem = ItemStack.EMPTY;
                 
-                if (essenceType == 2) {
-                    essenceItem = new ItemStack(lt.utopiabosses.registry.ItemRegistry.TREE_SPIRIT_ESSENCE);
+                if (essenceType == 1) {
+                    essenceItem = new ItemStack(lt.utopiabosses.registry.ItemRegistry.SUNFLOWER_NATURAL_ESSENCE);
                 }
                 
                 if (!essenceItem.isEmpty()) {
