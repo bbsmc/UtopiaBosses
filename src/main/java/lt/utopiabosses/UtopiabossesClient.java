@@ -59,6 +59,7 @@ public class UtopiabossesClient implements ClientModInitializer {
             // 设置NatureAltarBlock为透明渲染层
             BlockRenderLayerMap.INSTANCE.putBlock(BlockRegistry.NATURE_ALTAR, RenderLayer.getCutout());
             BlockRenderLayerMap.INSTANCE.putBlock(BlockRegistry.SUNFLOWER_ALTAR, RenderLayer.getCutout());
+            BlockRenderLayerMap.INSTANCE.putBlock(BlockRegistry.FLOWER_POT, RenderLayer.getCutout());
             LOGGER.info("已设置方块渲染层");
         } catch (Exception e) {
             LOGGER.error("设置方块渲染层时出错:", e);

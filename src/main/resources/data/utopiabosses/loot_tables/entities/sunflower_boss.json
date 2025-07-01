@@ -13,6 +13,17 @@
       ]
     },
     {
+      "name": "flowerpot",
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "utopiabosses:flowerpot",
+          "weight": 1
+        }
+      ]
+    },
+    {
       "name": "sunflower_seeds",
       "rolls": {
         "min": 20,

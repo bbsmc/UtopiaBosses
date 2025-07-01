@@ -66,6 +66,10 @@ public class ItemRegistry {
     public static final BlockItem SUN_ITEM = registerItem("sun",
             new BlockItem(BlockRegistry.SUN, new FabricItemSettings()));
 
+    // 花盆
+    public static final BlockItem FLOWER_POT = registerItem("flowerpot",
+            new BlockItem(BlockRegistry.FLOWER_POT, new FabricItemSettings()));
+
     // 生物蛋 - 使用自定义贴图
     public static final Item SUNFLOWER_BOSS_SPAWN_EGG = registerItem("sunflower_boss_spawn_egg",
             new CustomSpawnEggItem(EntityRegistry.SUNFLOWER_BOSS, new FabricItemSettings()));
@@ -140,6 +144,7 @@ public class ItemRegistry {
             content.add(TREE_SPIRIT_STAFF);
             content.add(NATURE_ALTAR);
             content.add(SUNFLOWER_ALTAR);
+            content.add(FLOWER_POT);
             content.add(NATURAL_ESSENCE);
             content.add(LIGHT_SEED_CRYSTAL);
             content.add(SUNFLOWER_SEED);

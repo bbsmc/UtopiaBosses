@@ -2,6 +2,7 @@ package lt.utopiabosses.registry;
 
 
 import lt.utopiabosses.Utopiabosses;
+import lt.utopiabosses.block.FlowerPotBlock;
 import lt.utopiabosses.block.NatureAltarBlock;
 import lt.utopiabosses.block.SunBlock;
 import lt.utopiabosses.block.SunflowerAltarBlock;
@@ -22,9 +23,13 @@ public class BlockRegistry {
     public static final Block SUNFLOWER_ALTAR = registerBlock("sunflower_altar",
             new SunflowerAltarBlock(Block.Settings.create().strength(3.0f).requiresTool().nonOpaque()));
 
-    // 自然祭坛方块
+    // 太阳方块
     public static final Block SUN = registerBlock("sun",
             new SunBlock(Block.Settings.create().strength(3.0f).requiresTool().nonOpaque()));
+
+    // 花盆方块
+    public static final Block FLOWER_POT = registerBlock("flowerpot",
+            new FlowerPotBlock(Block.Settings.create().strength(1.0f).nonOpaque()));
 
 
 

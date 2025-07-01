@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "utopiabosses:block/flowerpot"
+    },
+    "facing=south": {
+      "model": "utopiabosses:block/flowerpot",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "utopiabosses:block/flowerpot",
+      "y": 270
+    },
+    "facing=east": {
+      "model": "utopiabosses:block/flowerpot",
+      "y": 90
+    }
+  }
+} 
