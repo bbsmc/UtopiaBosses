@@ -14,16 +14,19 @@
   "item.utopiabosses.sunflower_sword": "向日葵剑",
   "item.utopiabosses.sunflower_shield": "向日葵盾",
   
-  "item.utopiabosses.sunflower_boss_spawn_egg": "向日葵BOSS生成蛋",
-  "item.utopiabosses.tree_boss_spawn_egg": "树灵BOSS生成蛋", 
-  "item.utopiabosses.plant_spirit_spawn_egg": "植物精灵生成蛋",
-  "item.utopiabosses.little_tree_man_spawn_egg": "小树人生成蛋",
+  "item.utopiabosses.sunflower_boss_spawn_egg": "向日葵BOSS刷怪蛋",
+  "item.utopiabosses.tree_boss_spawn_egg": "树灵BOSS刷怪蛋",
+  "item.utopiabosses.plant_spirit_spawn_egg": "植物精灵刷怪蛋",
+  "item.utopiabosses.little_tree_man_spawn_egg": "小树人刷怪蛋",
   
   "entity.utopiabosses.sunflower_boss": "向日葵BOSS",
   "entity.utopiabosses.tree_boss": "树灵BOSS",
   "entity.utopiabosses.plant_spirit": "植物精灵", 
   "entity.utopiabosses.little_tree_man": "小树人",
   "entity.utopiabosses.sunflower_seed": "向日葵种子",
+
+  "boss.utopiabosses.tree_boss": "树灵BOSS",
+  "boss.utopiabosses.sunflower_boss": "向日葵BOSS",
 
   "item.utopiabosses.natural_essence": "自然精华",
   "item.utopiabosses.light_seed_crystal": "光籽结晶",

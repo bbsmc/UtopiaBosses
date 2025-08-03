@@ -31,6 +31,9 @@
   "entity.utopiabosses.plant_spirit": "Plant Spirit",
   "entity.utopiabosses.little_tree_man": "Little Tree Man",
   "entity.utopiabosses.sunflower_seed": "Sunflower Seed",
+
+  "boss.utopiabosses.tree_boss": "Tree Boss",
+  "boss.utopiabosses.sunflower_boss": "Sunflower Boss",
   
   "item.utopiabosses.natural_essence": "Natural Essence",
   "item.utopiabosses.light_seed_crystal": "Light Seed Crystal",

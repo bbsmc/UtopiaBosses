@@ -129,7 +129,7 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
 //         TreeBoss.setDebugFixedSkill(SkillType.ROAR);
 
         this.bossBar = new ServerBossBar(
-            Text.literal("树木BOSS").formatted(Formatting.GREEN),
+            Text.translatable("boss.utopiabosses.tree_boss").formatted(Formatting.GREEN),
             BossBar.Color.GREEN, 
             BossBar.Style.PROGRESS
         );

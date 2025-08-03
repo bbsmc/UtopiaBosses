@@ -208,7 +208,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     public SunflowerBossEntity(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
         this.bossBar = new ServerBossBar(
-            Text.literal("向日葵BOSS").formatted(Formatting.YELLOW),
+            Text.translatable("boss.utopiabosses.sunflower_boss").formatted(Formatting.YELLOW),
             BossBar.Color.YELLOW, 
             BossBar.Style.PROGRESS
         );
