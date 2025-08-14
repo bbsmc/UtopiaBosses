@@ -128,6 +128,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private RemovalReason removalReason = null;
     private DamageSource deathCause = null; // 存储致命伤害的来源
     private float lethalDamage = 0; // 存储致命伤害的数值
+    private boolean droppedLoot = false; // 是否已经掉落物品
 
     // 添加一个标志变量来控制BOSS是否应该旋转
     private boolean shouldRotate = false;
@@ -204,6 +205,14 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
     // 添加一个调试模式下的攻击计数器
     private int debugAttackCounter = 0;
+    
+    // 护身技能相关变量
+    private int damageTakenWithoutAttack = 0;  // 没有攻击时受到的伤害次数
+    private int protectionSkillCooldown = 0;   // 护身技能冷却时间
+    private static final int PROTECTION_SKILL_COOLDOWN = 200; // 10秒冷却
+    private static final int DAMAGE_THRESHOLD_FOR_PROTECTION = 5; // 受到5次伤害触发护身
+    private long lastAttackTime = 0;  // 上次攻击的时间
+    private static final long NO_ATTACK_TIMEOUT = 3000; // 3秒没有攻击算作无法攻击
 
     public SunflowerBossEntity(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
@@ -272,9 +281,15 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                         
                         // 确保实体真正死亡
                         if (deathCause != null && !this.getWorld().isClient()) {
-                            // 不要设置血量为0，直接调用死亡处理逻辑
-                            // this.setHealth(0); - 这行可能导致触发原版死亡动画
-                            actuallyDie(deathCause);
+                            // 清理BOSS相关资源
+                            if (this.bossBar != null) {
+                                this.bossBar.clearPlayers();
+                            }
+                            
+                            // 在移除前掉落物品
+                            if (!this.droppedLoot) {
+                                this.dropCustomLoot(deathCause);
+                            }
                             
                             // 标记为应该移除，直接处理移除逻辑
                             shouldBeRemoved = true;
@@ -297,6 +312,11 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 更新攻击冷却时间
             if (attackCooldown > 0) {
                 attackCooldown--;
+            }
+            
+            // 更新护身技能冷却
+            if (protectionSkillCooldown > 0) {
+                protectionSkillCooldown--;
             }
 
             // 如果应该旋转，则在AI处理前强制设置朝向
@@ -698,17 +718,17 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
                 case SEED_BARRAGE:
                     seedBarrageCooldown = 200;
                     setAnimation(AnimationType.SEED_BARRAGE);
-                    sendMessageToNearbyPlayers("§e向日葵BOSS使用了§6葵花籽弹幕§e技能！");
+                    // sendMessageToNearbyPlayers("§e向日葵BOSS使用了§6葵花籽弹幕§e技能！");
                     break;
                 case SUNBEAM:
                     sunbeamCooldown = 300;
                     setAnimation(AnimationType.SUNBEAM);
-                    sendMessageToNearbyPlayers("§e向日葵BOSS使用了§c阳光灼烧射线§e技能！");
+                    // sendMessageToNearbyPlayers("§e向日葵BOSS使用了§c阳光灼烧射线§e技能！");
                     break;
                 case PETAL_STORM:
                     petalStormCooldown = 400;
                     setAnimation(AnimationType.PETAL_STORM);
-                    sendMessageToNearbyPlayers("§e向日葵BOSS使用了§d花瓣风暴§e技能！§c小心！");
+                    // sendMessageToNearbyPlayers("§e向日葵BOSS使用了§d花瓣风暴§e技能！§c小心！");
                     break;
             }
         }
@@ -726,7 +746,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         setAnimation(AnimationType.SEED_BARRAGE);
         seedBarrageCooldown = 10; // 短冷却，确保技能序列
         
-        sendMessageToNearbyPlayers("§e向日葵BOSS使用了§6葵花籽弹幕§e技能！");
+        // sendMessageToNearbyPlayers("§e向日葵BOSS使用了§6葵花籽弹幕§e技能！");
     }
 
     private void startSunbeamSkill() {
@@ -773,7 +793,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         // 发送消息
         if (!DEBUG_SUNBEAM_ONLY) { // 在调试模式下不发送消息
-            sendMessageToNearbyPlayers("§e向日葵BOSS使用了§c阳光灼烧射线§e技能！");
+            // sendMessageToNearbyPlayers("§e向日葵BOSS使用了§c阳光灼烧射线§e技能！");
         }
         
         
@@ -799,7 +819,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         
         
         // 发送消息
-        sendMessageToNearbyPlayers("§e向日葵BOSS使用了§d花瓣风暴§e技能！§c小心！");
+        // sendMessageToNearbyPlayers("§e向日葵BOSS使用了§d花瓣风暴§e技能！§c小心！");
     }
 
     // 修改葵花籽弹幕方法，调整伤害设置
@@ -1123,9 +1143,9 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
             // 发送死亡消息
             if (source.getAttacker() instanceof PlayerEntity) {
                 PlayerEntity player = (PlayerEntity) source.getAttacker();
-                sendMessageToNearbyPlayers("§e向日葵BOSS被 §b" + player.getName().getString() + " §e击败了！");
+                // sendMessageToNearbyPlayers("§e向日葵BOSS被 §b" + player.getName().getString() + " §e击败了！");
             } else {
-                sendMessageToNearbyPlayers("§e向日葵BOSS被击败了！");
+                // sendMessageToNearbyPlayers("§e向日葵BOSS被击败了！");
             }
             
             return true; // 伤害已处理
@@ -1134,7 +1154,20 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         // 正常伤害处理
         boolean damaged = super.damage(source, amount);
         
-
+        // 检测是否长时间没有攻击
+        if (damaged && source.getAttacker() instanceof PlayerEntity) {
+            long currentTime = System.currentTimeMillis();
+            // 如果距离上次攻击超过3秒，增加无攻击伤害计数
+            if (currentTime - lastAttackTime > NO_ATTACK_TIMEOUT) {
+                damageTakenWithoutAttack++;
+                // 如果达到阈值且护身技能不在冷却中，触发护身技能
+                if (damageTakenWithoutAttack >= DAMAGE_THRESHOLD_FOR_PROTECTION && protectionSkillCooldown <= 0) {
+                    triggerProtectionSkill();
+                    damageTakenWithoutAttack = 0;  // 重置计数
+                    protectionSkillCooldown = PROTECTION_SKILL_COOLDOWN;  // 设置冷却
+                }
+            }
+        }
         
         // 只在受到大量伤害时才中断阳光射线技能
         if (damaged && this.currentAnimation == AnimationType.SUNBEAM && amount >= 10.0f && !isHalfHealthTriggered) {
@@ -1147,23 +1180,112 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         return damaged;
     }
     
+    // 护身技能：击退周围玩家并恢复血量
+    private void triggerProtectionSkill() {
+        if (this.getWorld().isClient()) {
+            return;
+        }
+        
+        // 发送技能使用消息
+        // sendMessageToNearbyPlayers("§e向日葵BOSS使用了§d护身结界§e技能！");
+        
+        // 恢复20%血量
+        float healAmount = this.getMaxHealth() * 0.2f;
+        this.heal(healAmount);
+        
+        // 获取6格内的所有玩家
+        Box searchBox = new Box(
+            this.getX() - 6, this.getY() - 3, this.getZ() - 6,
+            this.getX() + 6, this.getY() + 3, this.getZ() + 6
+        );
+        
+        List<PlayerEntity> nearbyPlayers = this.getWorld().getEntitiesByClass(
+            PlayerEntity.class, searchBox, player -> player.isAlive()
+        );
+        
+        // 对每个玩家执行击退和点燃
+        for (PlayerEntity player : nearbyPlayers) {
+            // 计算击退方向
+            double dx = player.getX() - this.getX();
+            double dz = player.getZ() - this.getZ();
+            double distance = Math.sqrt(dx * dx + dz * dz);
+            
+            if (distance > 0) {
+                // 归一化方向向量
+                dx /= distance;
+                dz /= distance;
+                
+                // 施加强力击退
+                double knockbackStrength = 2.5;
+                player.setVelocity(
+                    dx * knockbackStrength,
+                    0.8,  // 向上的速度
+                    dz * knockbackStrength
+                );
+                player.velocityModified = true;
+                
+                // 点燃玩家5秒
+                player.setOnFireFor(5);
+                
+                // 造成少量伤害
+                player.damage(this.getDamageSources().mobAttack(this), 4.0f);
+            }
+        }
+        
+        // 播放特效
+        if (this.getWorld() instanceof ServerWorld serverWorld) {
+            // 发送粒子效果 - 金色光环
+            for (int i = 0; i < 360; i += 10) {
+                double radians = Math.toRadians(i);
+                double particleX = this.getX() + Math.cos(radians) * 3;
+                double particleZ = this.getZ() + Math.sin(radians) * 3;
+                
+                serverWorld.spawnParticles(
+                    ParticleTypes.END_ROD,
+                    particleX, this.getY() + 1, particleZ,
+                    5, 0.1, 0.5, 0.1, 0.1
+                );
+            }
+            
+            // 发送火焰粒子
+            serverWorld.spawnParticles(
+                ParticleTypes.FLAME,
+                this.getX(), this.getY() + 1, this.getZ(),
+                50, 2, 1, 2, 0.1
+            );
+        }
+        
+        // 播放爆炸音效
+        this.getWorld().playSound(null, this.getX(), this.getY(), this.getZ(),
+            net.minecraft.sound.SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.HOSTILE, 2.0f, 1.0f);
+    }
+    
     // 新增：开始死亡动画
     private void startDeathAnimation(DamageSource source, float amount) {
         // 检查是否已经在播放死亡动画
         if (isPlayingDeathAnimation) {
-            
             return;
         }
-        
-        
         
         // 设置标记
         isPlayingDeathAnimation = true;
         this.deathCause = source;
         this.lethalDamage = amount;
         
+        // 调用onDeath来触发死亡事件（FTB任务等需要这个）
+        // 这会触发事件但不会掉落物品（因为我们覆盖了dropLoot方法）
+        if (!this.dead) {
+            this.onDeath(source);
+        }
+        
         // 禁用AI，确保BOSS不会继续执行攻击逻辑
         this.setAiDisabled(true);
+        
+        // 设置为无敌状态，防止其他伤害打断死亡动画
+        this.setInvulnerable(true);
+        
+        // 设置生命值为0.01而不是0，防止被立即移除
+        this.setHealth(0.01F);
         
         // 记录当前视角方向，保持死亡动画期间不变
         float currentYaw = this.getYaw();
@@ -1193,7 +1315,7 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         forceTriggerAnimation("controller", "kuwei");
         
         // 向附近的玩家广播消息
-        sendMessageToNearbyPlayers("向日葵BOSS开始播放死亡动画");
+        // sendMessageToNearbyPlayers("向日葵BOSS开始播放死亡动画");
         
         // 确保实体不会立即被移除，等待动画播放完毕
         this.shouldBeRemoved = false;
@@ -1230,12 +1352,10 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     private void actuallyDie(DamageSource source) {
         // 如果已经在客户端，跳过处理
         if (this.getWorld().isClient()) {
-            
             return;
         }
         
         // 清理BOSS相关资源
-        
         if (this.bossBar != null) {
             this.bossBar.clearPlayers();
         }
@@ -1246,21 +1366,32 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         // 设置移除原因
         this.removalReason = RemovalReason.KILLED;
         
-        // 生成掉落物和经验，但不调用任何可能触发原版死亡动画的方法
-        this.dropCustomLoot(source);
-        // 不要调用super.onDeath或类似可能触发原版死亡动画的方法
+        // 生成掉落物和经验（在动画结束时掉落）
+        if (!this.droppedLoot) {
+            this.dropCustomLoot(source);
+        }
     }
 
     /**
      * 自定义掉落逻辑 - 使用战利品表
      */
     private void dropCustomLoot(DamageSource source) {
-        if (!this.getWorld().isClient()) {
-            // 使用战利品表进行掉落
-            this.dropLoot(source, true);
+        if (!this.getWorld().isClient() && !this.droppedLoot) {
+            // 临时设置标记以允许掉落
+            this.droppedLoot = true;
+            
+            // 直接调用原版的掉落逻辑
+            super.dropLoot(source, true);
             
             // 掉落经验
-            this.dropXp();
+            int xp = 100; // Boss掉落100经验
+            while (xp > 0) {
+                int drop = net.minecraft.entity.ExperienceOrbEntity.roundToOrbSize(xp);
+                xp -= drop;
+                this.getWorld().spawnEntity(new net.minecraft.entity.ExperienceOrbEntity(
+                    this.getWorld(), this.getX(), this.getY(), this.getZ(), drop
+                ));
+            }
         }
     }
     
@@ -1271,9 +1402,58 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
 
     @Override
     public void onDeath(DamageSource damageSource) {
-        
         cleanupSuns();
+        
+        // 调用super.onDeath()来触发死亡事件（FTB任务等需要这个）
         super.onDeath(damageSource);
+        
+        // 立即重置死亡状态以防止倒地
+        this.dead = false;
+    }
+    
+    @Override
+    public boolean isDead() {
+        // 如果正在播放死亡动画或生命值为0，都认为是死亡状态
+        return isPlayingDeathAnimation || super.isDead();
+    }
+    
+    @Override
+    protected void updatePostDeath() {
+        // 覆盖原版的死亡后更新，防止倒地动画
+        // 什么都不做，让我们的自定义死亡动画处理
+    }
+    
+    @Override
+    protected net.minecraft.sound.SoundEvent getDeathSound() {
+        // 返回null以禁用原版死亡声音
+        return null;
+    }
+    
+    @Override
+    protected void dropLoot(net.minecraft.entity.damage.DamageSource source, boolean causedByPlayer) {
+        // 只有在droppedLoot为true时才允许掉落（由dropCustomLoot控制）
+        if (this.droppedLoot) {
+            super.dropLoot(source, causedByPlayer);
+        }
+        // 否则阻止掉落（防止super.onDeath()调用时的掉落）
+    }
+    
+    @Override
+    protected void dropEquipment(net.minecraft.entity.damage.DamageSource source, int lootingMultiplier, boolean allowDrops) {
+        // 阻止装备掉落（Boss不应该掉落装备）
+        // 什么都不做
+    }
+    
+    @Override
+    protected void dropInventory() {
+        // 阻止物品栏掉落
+        // 什么都不做
+    }
+    
+    @Override
+    public boolean shouldDropXp() {
+        // 不在这里掉落经验，我们在dropCustomLoot中处理
+        return false;
     }
 
     @Override
@@ -1358,6 +1538,17 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
     // 修改setAnimation方法以同步到客户端
     public void setAnimation(AnimationType animation) {
         try {
+            // 记录攻击时间
+            if (animation == AnimationType.LEFT_MELEE_ATTACK || 
+                animation == AnimationType.RIGHT_MELEE_ATTACK || 
+                animation == AnimationType.RANGED_ATTACK ||
+                animation == AnimationType.SEED_BARRAGE ||
+                animation == AnimationType.SUNBEAM ||
+                animation == AnimationType.PETAL_STORM) {
+                lastAttackTime = System.currentTimeMillis();
+                damageTakenWithoutAttack = 0;  // 重置无攻击伤害计数
+            }
+            
             // 特殊处理死亡动画 - 可以从任何状态切换
             if (animation == AnimationType.KUWEI_STORM) {
                 isPlayingDeathAnimation = true;
@@ -2404,21 +2595,10 @@ public class SunflowerBossEntity extends HostileEntity implements GeoEntity {
         }
     }
     
-    // 添加一个方法，向附近的玩家发送消息
+    // 添加一个方法，向附近的玩家发送消息（已禁用）
     private void sendMessageToNearbyPlayers(String message) {
-        if (this.getWorld() instanceof ServerWorld) {
-            // 获取64格范围内的所有玩家
-            List<PlayerEntity> nearbyPlayers = this.getWorld().getEntitiesByClass(
-                PlayerEntity.class, 
-                this.getBoundingBox().expand(64.0), 
-                player -> !player.isSpectator()
-            );
-            
-            // 向每个玩家发送消息
-            for (PlayerEntity player : nearbyPlayers) {
-                player.sendMessage(Text.of(message), false);
-            }
-        }
+        // 功能已禁用，不再发送消息给玩家
+        return;
     }
     
     /**

@@ -4,11 +4,6 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/UtopiaBosses.main.iml" filepath="$PROJECT_DIR$/.idea/modules/UtopiaBosses.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/UtopiaBosses.test.iml" filepath="$PROJECT_DIR$/.idea/modules/UtopiaBosses.test.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/lt.UtopiaBosses.main.iml" filepath="$PROJECT_DIR$/.idea/modules/lt.UtopiaBosses.main.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/lt.UtopiaBosses.test.iml" filepath="$PROJECT_DIR$/.idea/modules/lt.UtopiaBosses.test.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/untitled.client.iml" filepath="$PROJECT_DIR$/.idea/modules/untitled.client.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/untitled.main.iml" filepath="$PROJECT_DIR$/.idea/modules/untitled.main.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/untitled.test.iml" filepath="$PROJECT_DIR$/.idea/modules/untitled.test.iml" />
     </modules>
   </component>
 </project>

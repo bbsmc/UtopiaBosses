@@ -3,10 +3,13 @@
   "ingredients": [
     {
       "item": "minecraft:sunflower"
+    },
+    {
+      "item": "utopiabosses:natural_essence"
     }
   ],
   "result": {
-    "item": "utopiabosses:sunflower_seed",
+    "item": "utopiabosses:enchanted_sunflower_seed",
     "count": 9
   }
-} 
+}

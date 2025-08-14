@@ -133,11 +133,11 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
     public void fireWeapon(ItemStack stack, World world, LivingEntity user) {
         if (!(world instanceof ServerWorld serverWorld)) return;
         
-        // 检查玩家背包是否有葵花籽
+        // 检查玩家背包是否有魔化葵花籽
         if (user instanceof PlayerEntity player) {
-            ItemStack sunflowerSeedStack = findSunflowerSeeds(player);
-            if (sunflowerSeedStack.isEmpty()) {
-                // 没有葵花籽，播放失败音效
+            ItemStack enchantedSeedStack = findEnchantedSunflowerSeeds(player);
+            if (enchantedSeedStack.isEmpty()) {
+                // 没有魔化葵花籽，播放失败音效
                 world.playSound(null, user.getX(), user.getY(), user.getZ(),
                         SoundEvents.BLOCK_DISPENSER_FAIL, SoundCategory.PLAYERS, 0.25F, 1.3F);
                 return;
@@ -155,9 +155,9 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
             // 触发射击动画
             triggerAnim(player, GeoItem.getOrAssignId(stack, serverWorld), CONTROLLER_NAME, FIRING_ANIM);
             
-            // 消耗葵花籽而不是耐久度
+            // 消耗魔化葵花籽而不是耐久度
             if (!player.isCreative()) {
-                sunflowerSeedStack.decrement(1);
+                enchantedSeedStack.decrement(1);
             }
             
             // 添加冷却
@@ -166,21 +166,21 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
     }
     
     /**
-     * 在玩家背包中寻找葵花籽
+     * 在玩家背包中寻找魔化葵花籽
      */
-    private ItemStack findSunflowerSeeds(PlayerEntity player) {
+    private ItemStack findEnchantedSunflowerSeeds(PlayerEntity player) {
         // 检查主手和副手
-        if (player.getMainHandStack().isOf(lt.utopiabosses.registry.ItemRegistry.SUNFLOWER_SEED)) {
+        if (player.getMainHandStack().isOf(lt.utopiabosses.registry.ItemRegistry.ENCHANTED_SUNFLOWER_SEED)) {
             return player.getMainHandStack();
         }
-        if (player.getOffHandStack().isOf(lt.utopiabosses.registry.ItemRegistry.SUNFLOWER_SEED)) {
+        if (player.getOffHandStack().isOf(lt.utopiabosses.registry.ItemRegistry.ENCHANTED_SUNFLOWER_SEED)) {
             return player.getOffHandStack();
         }
         
         // 检查背包
         for (int i = 0; i < player.getInventory().size(); i++) {
             ItemStack stack = player.getInventory().getStack(i);
-            if (stack.isOf(lt.utopiabosses.registry.ItemRegistry.SUNFLOWER_SEED)) {
+            if (stack.isOf(lt.utopiabosses.registry.ItemRegistry.ENCHANTED_SUNFLOWER_SEED)) {
                 return stack;
             }
         }
@@ -206,6 +206,9 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
         projectile.setVelocity(lookDirection.multiply(3.0));
         projectile.setHomingTarget(null);
         projectile.setDamage(6.0f);
+        
+        // 标记这是加特林发射的子弹
+        projectile.setFromGatling(true);
         
         return projectile;
     }
@@ -330,7 +333,7 @@ public class SunflowerGatlingItem extends Item implements GeoItem {
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
         tooltip.add(Text.literal("无限耐久")
                 .formatted(Formatting.GOLD));
-        tooltip.add(Text.literal("右键发射：需要消耗背包中的葵花籽")
+        tooltip.add(Text.literal("右键发射：需要消耗背包中的魔化葵花籽")
                 .formatted(Formatting.GREEN));
         tooltip.add(Text.literal("击败向日葵BOSS掉落")
                 .formatted(Formatting.YELLOW));

@@ -1,0 +1,23 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "gradle",
+			"id": "/Users/admin/Documents/work/UtopiaBossesbuildUtopiaBosses",
+			"script": "build",
+			"description": "Assembles and tests this project.",
+			"group": "build",
+			"project": "UtopiaBosses",
+			"buildFile": "/Users/admin/Documents/work/UtopiaBosses/build.gradle",
+			"rootProject": "UtopiaBosses",
+			"projectFolder": "/Users/admin/Documents/work/UtopiaBosses",
+			"workspaceFolder": "/Users/admin/Documents/work/UtopiaBosses",
+			"args": "",
+			"javaDebug": false,
+			"problemMatcher": [
+				"$gradle"
+			],
+			"label": "gradle: build"
+		}
+	]
+}

@@ -24,7 +24,7 @@
       ]
     },
     {
-      "name": "sunflower_seeds",
+      "name": "enchanted_sunflower_seeds",
       "rolls": {
         "min": 20,
         "max": 30
@@ -32,7 +32,7 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "utopiabosses:sunflower_seed",
+          "name": "utopiabosses:enchanted_sunflower_seed",
           "weight": 1
         }
       ]

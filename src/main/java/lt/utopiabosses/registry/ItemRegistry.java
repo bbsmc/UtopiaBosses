@@ -111,13 +111,15 @@ public class ItemRegistry {
 
 
 
-    // 葵花籽
-    public static final Item SUNFLOWER_SEED = registerItem("sunflower_seed", 
-            new Item(new FabricItemSettings().food(new FoodComponent.Builder().hunger(1).saturationModifier(0.1f).build())));
-    
-    // 熟葵花籽
-    public static final Item COOKED_SUNFLOWER_SEED = registerItem("cooked_sunflower_seed", 
-            new Item(new FabricItemSettings().food(new FoodComponent.Builder().hunger(4).saturationModifier(2.0f).build())));
+    // 魔化葵花籽 - 食用后加少量饱食度，但会反胃5秒
+    public static final Item ENCHANTED_SUNFLOWER_SEED = registerItem("enchanted_sunflower_seed", 
+            new lt.utopiabosses.item.EnchantedSunflowerSeedItem(new FabricItemSettings()
+                .food(new FoodComponent.Builder()
+                    .hunger(1)                    // 饥饿值：1点（半格饥饿条）
+                    .saturationModifier(0.2f)     // 饱食度：很低
+                    .alwaysEdible()              // 可以在饱腹时食用
+                    .snack()                     // 快速食用（像曲奇那样）
+                    .build())));
     
 
     
@@ -147,8 +149,7 @@ public class ItemRegistry {
             content.add(FLOWER_POT);
             content.add(NATURAL_ESSENCE);
             content.add(LIGHT_SEED_CRYSTAL);
-            content.add(SUNFLOWER_SEED);
-            content.add(COOKED_SUNFLOWER_SEED);
+            content.add(ENCHANTED_SUNFLOWER_SEED);
             content.add(SUNFLOWER_NATURAL_ESSENCE);
 
 

@@ -31,6 +31,9 @@ public class SunflowerSeedEntity extends ThrownItemEntity {
     
     // 添加一个标志，区分普通攻击和技能攻击
     private boolean isSkillAttack = false;
+    
+    // 添加一个标志，标记是否来自加特林
+    private boolean isFromGatling = false;
 
     public SunflowerSeedEntity(EntityType<? extends ThrownItemEntity> entityType, World world) {
         super(entityType, world);
@@ -46,7 +49,7 @@ public class SunflowerSeedEntity extends ThrownItemEntity {
 
     @Override
     protected Item getDefaultItem() {
-        return ItemRegistry.SUNFLOWER_SEED;
+        return ItemRegistry.ENCHANTED_SUNFLOWER_SEED;
     }
     
     @Override
@@ -75,13 +78,38 @@ public class SunflowerSeedEntity extends ThrownItemEntity {
         super.onEntityHit(entityHitResult);
         
         Entity entity = entityHitResult.getEntity();
-        if (entity instanceof LivingEntity) {
-            // 造成4颗心伤害
-            entity.damage(this.getDamageSources().mobProjectile(this, (LivingEntity)this.getOwner()), damage);
+        if (entity instanceof LivingEntity livingEntity) {
+            // 使用标志判断是否来自加特林
+            if (this.isFromGatling) {
+                // 加特林的子弹绕过无敌时间
+                // 保存原本的无敌时间
+                int originalHurtTime = livingEntity.hurtTime;
+                int originalRegenTime = livingEntity.timeUntilRegen;
+                
+                // 临时设置无敌时间为0，允许立即受到伤害
+                livingEntity.hurtTime = 0;
+                livingEntity.timeUntilRegen = 0;
+                
+                // 造成伤害
+                boolean damaged = entity.damage(this.getDamageSources().mobProjectile(this, (LivingEntity)this.getOwner()), damage);
+                
+                // 如果伤害成功，设置一个极短的无敌时间（1 tick），仅防止同一发子弹多次伤害
+                if (damaged) {
+                    livingEntity.hurtTime = 1;
+                    livingEntity.timeUntilRegen = 1;
+                } else {
+                    // 如果伤害失败，恢复原本的无敌时间
+                    livingEntity.hurtTime = originalHurtTime;
+                    livingEntity.timeUntilRegen = originalRegenTime;
+                }
+            } else {
+                // 非加特林的子弹使用正常伤害机制
+                entity.damage(this.getDamageSources().mobProjectile(this, (LivingEntity)this.getOwner()), damage);
+            }
             
             // 如果是玩家，添加减速效果
             if (entity instanceof PlayerEntity) {
-                ((LivingEntity)entity).addStatusEffect(
+                livingEntity.addStatusEffect(
                     new StatusEffectInstance(StatusEffects.SLOWNESS, 60, 1));
             }
             
@@ -157,5 +185,10 @@ public class SunflowerSeedEntity extends ThrownItemEntity {
 
     public void setDamage(float damage) {
         this.damage = damage;
+    }
+    
+    // 添加设置加特林标志的方法
+    public void setFromGatling(boolean fromGatling) {
+        this.isFromGatling = fromGatling;
     }
 }

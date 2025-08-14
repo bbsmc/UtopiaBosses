@@ -3,14 +3,18 @@ package lt.utopiabosses.item;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 import lt.utopiabosses.client.renderer.item.SunflowerSwordRenderer;
+import net.minecraft.block.BlockState;
 import net.minecraft.client.render.item.BuiltinModelItemRenderer;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.EntityAttribute;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.item.Item;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.SwordItem;
+import net.minecraft.item.ToolMaterials;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
@@ -33,38 +37,17 @@ import java.util.Random;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class SunflowerSwordItem extends Item implements GeoItem {
+public class SunflowerSwordItem extends SwordItem implements GeoItem {
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final Supplier<Object> renderProvider = GeoItem.makeRenderer(this);
 
     private final Random random = new Random();
 
-
-    // 添加钻石剑的属性：7攻击伤害，1.6攻击速度
-    private final Multimap<EntityAttribute, EntityAttributeModifier> attributeModifiers;
-
     public SunflowerSwordItem(Settings settings) {
-        super(settings);
+        // 使用钻石材料作为基础，攻击力3+3=6，总计7点伤害
+        super(ToolMaterials.DIAMOND, 3, -2.4F, settings);
         SingletonGeoAnimatable.registerSyncedAnimatable(this);
-        
-        // 配置与钻石剑相同的属性
-        ImmutableMultimap.Builder<EntityAttribute, EntityAttributeModifier> builder = ImmutableMultimap.builder();
-        builder.put(
-            EntityAttributes.GENERIC_ATTACK_DAMAGE,
-            new EntityAttributeModifier(ATTACK_DAMAGE_MODIFIER_ID, "Weapon modifier", 6.0, EntityAttributeModifier.Operation.ADDITION)
-        );
-        builder.put(
-            EntityAttributes.GENERIC_ATTACK_SPEED,
-            new EntityAttributeModifier(ATTACK_SPEED_MODIFIER_ID, "Weapon modifier", -2.4, EntityAttributeModifier.Operation.ADDITION)
-        );
-        this.attributeModifiers = builder.build();
-    }
-
-
-    @Override
-    public Multimap<EntityAttribute, EntityAttributeModifier> getAttributeModifiers(EquipmentSlot slot) {
-        return slot == EquipmentSlot.MAINHAND ? this.attributeModifiers : super.getAttributeModifiers(slot);
     }
 
     @Override
@@ -222,7 +205,26 @@ public class SunflowerSwordItem extends Item implements GeoItem {
     @Override
     public boolean canRepair(ItemStack stack, ItemStack ingredient) {
         // 可以使用光籽结晶进行修复
-        return ingredient.isOf(lt.utopiabosses.registry.ItemRegistry.LIGHT_SEED_CRYSTAL);
+        return ingredient.isOf(lt.utopiabosses.registry.ItemRegistry.LIGHT_SEED_CRYSTAL) || super.canRepair(stack, ingredient);
+    }
+    
+    @Override
+    public boolean canMine(BlockState state, net.minecraft.world.World world, BlockPos pos, PlayerEntity miner) {
+        // 剑不应该用来挖掘方块（除了蜘蛛网等特殊方块）
+        return !miner.isCreative();
+    }
+    
+    @Override
+    public float getMiningSpeedMultiplier(ItemStack stack, BlockState state) {
+        // 剑的挖掘速度很慢（除了某些特定方块）
+        if (state.isOf(net.minecraft.block.Blocks.COBWEB)) {
+            return 15.0F;
+        }
+        // 对植物类方块稍快
+        if (state.isIn(net.minecraft.registry.tag.BlockTags.LEAVES)) {
+            return 1.5F;
+        }
+        return super.getMiningSpeedMultiplier(stack, state);
     }
 
 

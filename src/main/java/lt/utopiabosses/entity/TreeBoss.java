@@ -2,6 +2,7 @@ package lt.utopiabosses.entity;
 
 import lt.utopiabosses.registry.EntityRegistry;
 import lt.utopiabosses.registry.SoundRegistry;
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -25,8 +26,10 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.block.BlockState;
 import net.minecraft.world.World;
 import net.minecraft.particle.ParticleTypes;
 import software.bernie.geckolib.animatable.GeoEntity;
@@ -117,12 +120,40 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         ROAR    // 朝天怒吼技能
     }
     
+    // 障碍物处理策略枚举
+    private enum ObstacleStrategy {
+        DESTROY,    // 破坏障碍物
+        TELEPORT,   // 瞬移突破
+        LEAP        // 跳跃越过
+    }
+    
+    // 障碍物处理相关变量
+    private int stuckTicks = 0;                    // 被卡住的时间计数
+    private Vec3d lastPosition = null;              // 上一次的位置
+    private ObstacleStrategy currentStrategy = null; // 当前使用的策略
+    private int strategyAttempts = 0;              // 当前策略尝试次数
+    private boolean isHandlingObstacle = false;    // 是否正在处理障碍物
+    private int teleportCooldown = 0;              // 瞬移冷却
+    private int leapCooldown = 0;                  // 跳跃冷却
+    
+    // 死亡相关变量
+    private net.minecraft.entity.damage.DamageSource lastDamageSource; // 最后的伤害源
+    private boolean droppedLoot = false;           // 是否已经掉落物品
+    
     // 移动音效相关变量
     private int moveSoundCooldown = 0;
     private int walkAnimTicks = 0;
     private boolean isWalking = false;
     private boolean playedFirstStepSound = false;
     private boolean playedSecondStepSound = false;
+    
+    // 浆果丛困住检测
+    private int stuckInBerryTicks = 0;
+    private int damageTakenInBerry = 0;
+    
+    // 被攻击时卡住检测
+    private int stuckDamageCounter = 0;  // 被卡住时受到伤害的累计次数
+    private boolean forceSkillRelease = false;  // 强制释放技能标志
     
     public TreeBoss(EntityType<? extends HostileEntity> entityType, World world) {
         super(entityType, world);
@@ -133,6 +164,10 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             BossBar.Color.GREEN, 
             BossBar.Style.PROGRESS
         );
+        
+        // 设置较高的台阶高度，让Boss能跨过障碍物
+        // 铁傀儡的stepHeight是1.0，浆果丛高度约0.25
+        this.setStepHeight(1.0f);
     }
 
 
@@ -196,6 +231,20 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             moveSoundCooldown--;
         }
         
+        // 处理障碍物（只在服务端执行）
+        if (!this.getWorld().isClient()) {
+            handleObstacle();
+            
+            // 检查是否需要强制释放技能
+            if (forceSkillRelease) {
+                System.out.println("[DEBUG] Force skill release triggered in tick! AttackCooldown: " + attackCooldown);
+                // 强制触发技能释放（忽略冷却时间）
+                triggerForceSkill();
+                forceSkillRelease = false;
+                stuckDamageCounter = 0;  // 重置伤害计数器
+            }
+        }
+        
         // 如果正在播放死亡动画
         if (this.dataTracker.get(IS_DYING)) {
             // 增加死亡计时器
@@ -214,6 +263,14 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 // 清理血条
                 if (bossBar != null) {
                     bossBar.clearPlayers();
+                }
+                
+                // 在移除前掉落物品
+                if (!this.getWorld().isClient() && !this.droppedLoot) {
+                    // 使用自定义掉落方法，避免重复
+                    this.dropCustomLoot(this.lastDamageSource != null ? this.lastDamageSource : 
+                                       this.getDamageSources().generic());
+                    this.droppedLoot = true;
                 }
                 
                 // 实际移除实体
@@ -905,6 +962,38 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     }
     
     /**
+     * 强制触发技能（当被攻击多次仍被卡住时）
+     */
+    private void triggerForceSkill() {
+        // 寻找最近的玩家作为目标
+        PlayerEntity nearestPlayer = this.getWorld().getClosestPlayer(this, 40.0);
+        if (nearestPlayer != null) {
+            // 面向玩家
+            faceEntity(nearestPlayer);
+            
+            // 随机选择一个技能释放
+            int skillChoice = random.nextInt(4);
+            switch (skillChoice) {
+                case 0:
+                    useStompAttack();
+                    break;
+                case 1:
+                    useGrabAttack();
+                    break;
+                case 2:
+                    useVinesAttack();
+                    break;
+                case 3:
+                    useRoarAttack();
+                    break;
+            }
+            
+            // 设置技能冷却
+            attackCooldown = 60;
+        }
+    }
+    
+    /**
      * 让BOSS面向指定实体
      */
     private void faceEntity(Entity entity) {
@@ -1238,6 +1327,9 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     // 覆盖原版的死亡方法
     @Override
     public void onDeath(net.minecraft.entity.damage.DamageSource source) {
+        // 保存伤害源
+        this.lastDamageSource = source;
+        
         // 确保BOSS面向最后的攻击者或玩家
         if (source.getAttacker() != null) {
             faceEntity(source.getAttacker());
@@ -1251,11 +1343,15 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             }
         }
         
-        // 不调用super.onDeath()来防止默认的死亡效果
-        
-        // 标记为正在死亡
+        // 标记为正在死亡（在调用super之前）
         this.dataTracker.set(IS_DYING, true);
         this.deathTicks = 0;
+        
+        // 调用super.onDeath()来触发死亡事件（FTB任务等需要这个）
+        super.onDeath(source);
+        
+        // 立即重置死亡状态以防止倒地
+        this.dead = false;
         
         // 禁用AI
         this.setAiDisabled(true);
@@ -1263,25 +1359,32 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
         // 设置为无敌状态，防止其他伤害打断死亡动画
         this.setInvulnerable(true);
         
-        // 设置生命值为1而不是0，防止触发原版死亡效果
-        this.setHealth(1.0F);
+        // 设置生命值为0.01而不是0，防止被立即移除
+        this.setHealth(0.01F);
         
-        // 掉落自定义物品
-        this.dropCustomLoot(source);
-        
-        // 不要调用onRemoved()，它会立即清理血条
+        // 掉落物品将在动画结束时处理
     }
     
     /**
      * 自定义掉落逻辑 - 使用战利品表
      */
     private void dropCustomLoot(net.minecraft.entity.damage.DamageSource source) {
-        if (!this.getWorld().isClient()) {
-            // 使用战利品表进行掉落
-            this.dropLoot(source, true);
+        if (!this.getWorld().isClient() && !this.droppedLoot) {
+            // 临时设置标记以允许掉落
+            this.droppedLoot = true;
+            
+            // 直接调用原版的掉落逻辑
+            super.dropLoot(source, true);
             
             // 掉落经验
-            this.dropXp();
+            int xp = 100; // Boss掉落100经验
+            while (xp > 0) {
+                int drop = net.minecraft.entity.ExperienceOrbEntity.roundToOrbSize(xp);
+                xp -= drop;
+                this.getWorld().spawnEntity(new net.minecraft.entity.ExperienceOrbEntity(
+                    this.getWorld(), this.getX(), this.getY(), this.getZ(), drop
+                ));
+            }
         }
     }
     
@@ -1311,10 +1414,83 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
     
     // 覆盖受伤方法，在死亡动画播放时不显示受伤效果
     @Override
+    public boolean isDead() {
+        // 如果正在播放死亡动画或生命值为0，都认为是死亡状态
+        return this.dataTracker.get(IS_DYING) || super.isDead();
+    }
+    
+    @Override
+    protected void updatePostDeath() {
+        // 覆盖原版的死亡后更新，防止倒地动画
+        // 什么都不做，让我们的自定义死亡动画处理
+    }
+    
+    @Override
+    protected void dropLoot(net.minecraft.entity.damage.DamageSource source, boolean causedByPlayer) {
+        // 只有在droppedLoot为true时才允许掉落（由dropCustomLoot控制）
+        if (this.droppedLoot) {
+            super.dropLoot(source, causedByPlayer);
+        }
+        // 否则阻止掉落（防止super.onDeath()调用时的掉落）
+    }
+    
+    @Override
+    protected void dropEquipment(net.minecraft.entity.damage.DamageSource source, int lootingMultiplier, boolean allowDrops) {
+        // 阻止装备掉落（Boss不应该掉落装备）
+        // 什么都不做
+    }
+    
+    @Override
+    protected void dropInventory() {
+        // 阻止物品栏掉落
+        // 什么都不做
+    }
+    
+    @Override
+    public boolean shouldDropXp() {
+        // 不在这里掉落经验，我们在dropCustomLoot中处理
+        return false;
+    }
+    
+    @Override
     public boolean damage(net.minecraft.entity.damage.DamageSource source, float amount) {
         // 如果正在死亡，完全阻止所有伤害
         if (this.dataTracker.get(IS_DYING)) {
             return false;
+        }
+        
+        // 检测被卡住时受到伤害
+        if (source.getAttacker() instanceof PlayerEntity) {
+            boolean stuck = isStuck();
+            System.out.println("[DEBUG] TreeBoss damaged - Stuck: " + stuck + ", Counter: " + stuckDamageCounter + ", LastPos: " + lastPosition + ", CurrentPos: " + this.getPos());
+            
+            if (stuck) {
+                stuckDamageCounter++;
+                System.out.println("[DEBUG] Stuck damage counter increased to: " + stuckDamageCounter);
+                
+                // 如果被卡住时受到4次伤害，强制释放技能
+                if (stuckDamageCounter >= 4) {
+                    System.out.println("[DEBUG] Triggering force skill release!");
+                    forceSkillRelease = true;
+                    stuckDamageCounter = 0;  // 重置计数器
+                }
+            } else {
+                // 如果不再卡住，重置计数器
+                if (stuckDamageCounter > 0) {
+                    System.out.println("[DEBUG] No longer stuck, resetting counter");
+                    stuckDamageCounter = 0;
+                }
+            }
+        }
+        
+        // 检测浆果丛伤害
+        if (source == this.getDamageSources().sweetBerryBush()) {
+            this.damageTakenInBerry++;
+            // 如果在浆果丛中受到多次伤害，开始破坏周围的浆果丛
+            if (this.damageTakenInBerry >= 3) {
+                this.destroyNearbyBerryBushes();
+                this.damageTakenInBerry = 0;
+            }
         }
         
         // 是否命中上半身标志
@@ -1403,6 +1579,47 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
             bossBar.clearPlayers();
         }
         super.onRemoved();
+    }
+    
+    // 覆盖slowMovement方法，让TreeBoss不受浆果丛减速影响
+    @Override
+    public void slowMovement(BlockState state, Vec3d multiplier) {
+        // 如果是浆果丛，忽略减速效果
+        if (state.getBlock() instanceof net.minecraft.block.SweetBerryBushBlock) {
+            return; // 不应用减速
+        }
+        // 其他方块正常处理
+        super.slowMovement(state, multiplier);
+    }
+    
+    // 破坏周围的浆果丛
+    private void destroyNearbyBerryBushes() {
+        if (this.getWorld().isClient()) {
+            return;
+        }
+        
+        // 在Boss周围3x3x2的范围内破坏浆果丛
+        BlockPos centerPos = this.getBlockPos();
+        for (int x = -2; x <= 2; x++) {
+            for (int z = -2; z <= 2; z++) {
+                for (int y = -1; y <= 1; y++) {
+                    BlockPos pos = centerPos.add(x, y, z);
+                    BlockState state = this.getWorld().getBlockState(pos);
+                    
+                    // 如果是浆果丛，破坏它
+                    if (state.getBlock() instanceof net.minecraft.block.SweetBerryBushBlock) {
+                        this.getWorld().breakBlock(pos, true);
+                        
+                        // 播放破坏音效
+                        this.getWorld().playSound(null, pos, 
+                            net.minecraft.sound.SoundEvents.BLOCK_SWEET_BERRY_BUSH_BREAK, 
+                            net.minecraft.sound.SoundCategory.BLOCKS, 
+                            1.0F, 1.0F);
+                    }
+                }
+            }
+        }
+        
     }
 
     /**
@@ -1834,6 +2051,436 @@ public class TreeBoss extends HostileEntity implements GeoEntity {
                 );
             }
         }
+    }
+
+    /**
+     * 检测是否被障碍物阻挡
+     */
+    private boolean isStuck() {
+        // 如果没有目标，不算被卡住
+        if (this.getTarget() == null) {
+            return false;
+        }
+        
+        // 如果正在施放技能，不算被卡住
+        if (this.dataTracker.get(IS_DYING) || 
+            this.dataTracker.get(IS_STOMPING) ||
+            this.dataTracker.get(IS_GRABBING) ||
+            this.dataTracker.get(IS_SUMMONING_VINES) || 
+            this.dataTracker.get(IS_ROARING) ||
+            this.dataTracker.get(ATTACK_TYPE) != AttackType.NONE.ordinal()) {
+            return false;
+        }
+        
+        // 如果没有上次位置记录，初始化为当前位置
+        if (lastPosition == null) {
+            lastPosition = this.getPos();
+            return false;
+        }
+        
+        // 简化判断：只要移动距离小就算卡住
+        double moveDistance = this.getPos().distanceTo(lastPosition);
+        return moveDistance < 0.5;  // 放宽阈值，更容易检测到卡住状态
+    }
+    
+    /**
+     * 检测前方是否有浆果丛或其他障碍物
+     */
+    private boolean hasObstacleAhead() {
+        Vec3d lookVec = Vec3d.fromPolar(0, this.getYaw());
+        
+        // 检查前方2格范围内的方块
+        for (int distance = 1; distance <= 2; distance++) {
+            BlockPos checkPos = new BlockPos(
+                (int)(this.getX() + lookVec.x * distance),
+                (int)this.getY(),
+                (int)(this.getZ() + lookVec.z * distance)
+            );
+            
+            BlockState state = this.getWorld().getBlockState(checkPos);
+            // 检查是否是浆果丛或其他会阻挡的方块
+            if (state.getBlock() instanceof net.minecraft.block.SweetBerryBushBlock ||
+                state.getBlock() instanceof net.minecraft.block.CobwebBlock ||
+                (state.isFullCube(this.getWorld(), checkPos) && !state.isAir())) {
+                return true;
+            }
+            
+            // 也检查上方一格（防止高度阻挡）
+            BlockPos upperPos = checkPos.up();
+            BlockState upperState = this.getWorld().getBlockState(upperPos);
+            if (state.getBlock() instanceof net.minecraft.block.SweetBerryBushBlock ||
+                (upperState.isFullCube(this.getWorld(), upperPos) && !upperState.isAir())) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 选择障碍物处理策略
+     */
+    private ObstacleStrategy selectStrategy() {
+        // 如果当前策略失败次数过多，切换策略
+        if (currentStrategy != null && strategyAttempts >= 3) {
+            // 选择下一个策略
+            ObstacleStrategy[] strategies = ObstacleStrategy.values();
+            int currentIndex = currentStrategy.ordinal();
+            int nextIndex = (currentIndex + 1) % strategies.length;
+            return strategies[nextIndex];
+        }
+        
+        // 如果没有当前策略或尝试次数未满，随机选择
+        if (currentStrategy == null) {
+            ObstacleStrategy[] strategies = ObstacleStrategy.values();
+            return strategies[random.nextInt(strategies.length)];
+        }
+        
+        return currentStrategy;
+    }
+    
+    /**
+     * 执行破坏障碍物策略
+     */
+    private boolean executeDestroyStrategy() {
+        boolean destroyed = false;
+        
+        // 破坏周围的障碍物，但不破坏脚下的方块
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -1; dy <= 2; dy++) { // 从-1开始，不破坏脚下方块
+                for (int dz = -2; dz <= 2; dz++) {
+                    // 跳过脚下正下方的方块
+                    if (dy == -1 && Math.abs(dx) <= 1 && Math.abs(dz) <= 1) {
+                        continue; // 不破坏脚下3x3范围的支撑方块
+                    }
+                    
+                    BlockPos targetPos = new BlockPos(
+                        (int)(this.getX() + dx),
+                        (int)(this.getY() + dy),
+                        (int)(this.getZ() + dz)
+                    );
+                    
+                    BlockState state = this.getWorld().getBlockState(targetPos);
+                    net.minecraft.block.Block block = state.getBlock();
+                    
+                    // 检查是否是祭坛（根据ID判断）
+                    String blockId = net.minecraft.registry.Registries.BLOCK.getId(block).toString();
+                    if (blockId.contains("altar") || blockId.contains("shrine")) {
+                        continue; // 跳过祭坛，不破坏
+                    }
+                    
+                    // 判断是否可以破坏的障碍物
+                    boolean shouldDestroy = false;
+                    
+                    // 破坏所有非空气、非液体、非基岩的方块
+                    if (!state.isAir() && 
+                        state.getFluidState().isEmpty() &&
+                        block != net.minecraft.block.Blocks.BEDROCK &&
+                        block != net.minecraft.block.Blocks.END_PORTAL_FRAME) { // 只保留基岩和末地传送门框架不能破坏
+                        shouldDestroy = true;
+                    }
+                    
+                    if (shouldDestroy) {
+                        this.getWorld().breakBlock(targetPos, true);
+                        destroyed = true;
+                        
+                        // 减少音效播放频率，避免太吵
+                        if (random.nextFloat() < 0.2f) {
+                            this.getWorld().playSound(null, targetPos, 
+                                net.minecraft.sound.SoundEvents.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, 
+                                net.minecraft.sound.SoundCategory.BLOCKS, 1.0F, 0.8F);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 如果破坏了障碍物，生成一个大的粒子效果
+        if (destroyed) {
+            ((ServerWorld)this.getWorld()).spawnParticles(
+                ParticleTypes.SWEEP_ATTACK,
+                this.getX(), this.getY() + 2, this.getZ(),
+                10, 1.0, 0.5, 1.0, 0.1
+            );
+        }
+        
+        return destroyed;
+    }
+    
+    /**
+     * 执行瞬移策略
+     */
+    private boolean executeTeleportStrategy() {
+        if (teleportCooldown > 0 || this.getTarget() == null) {
+            return false;
+        }
+        
+        LivingEntity target = this.getTarget();
+        
+        // 计算瞬移目标位置（目标附近3-5格的随机位置）
+        double angle = random.nextDouble() * 2 * Math.PI;
+        double distance = 3.0 + random.nextDouble() * 2.0;
+        
+        double teleportX = target.getX() + Math.sin(angle) * distance;
+        double teleportZ = target.getZ() + Math.cos(angle) * distance;
+        double teleportY = target.getY();
+        
+        // 确保瞬移位置是安全的
+        BlockPos teleportPos = new BlockPos((int)teleportX, (int)teleportY, (int)teleportZ);
+        if (!this.getWorld().getBlockState(teleportPos).isAir() || 
+            !this.getWorld().getBlockState(teleportPos.up()).isAir()) {
+            // 尝试找到附近的安全位置
+            teleportY = this.getWorld().getTopY(net.minecraft.world.Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, 
+                (int)teleportX, (int)teleportZ);
+        }
+        
+        // 在原位置生成消失特效
+        ((ServerWorld)this.getWorld()).spawnParticles(
+            ParticleTypes.LARGE_SMOKE,
+            this.getX(), this.getY() + 1, this.getZ(),
+            30, 0.5, 1.0, 0.5, 0.1
+        );
+        
+        // 播放瞬移音效
+        this.getWorld().playSound(null, this.getBlockPos(), 
+            net.minecraft.sound.SoundEvents.ENTITY_ENDERMAN_TELEPORT, 
+            net.minecraft.sound.SoundCategory.HOSTILE, 2.0F, 0.8F);
+        
+        // 执行瞬移
+        this.teleport(teleportX, teleportY, teleportZ);
+        
+        // 在新位置生成出现特效
+        ((ServerWorld)this.getWorld()).spawnParticles(
+            ParticleTypes.PORTAL,
+            teleportX, teleportY + 1, teleportZ,
+            50, 0.5, 1.0, 0.5, 0.2
+        );
+        
+        // 设置冷却时间
+        teleportCooldown = 100; // 5秒冷却
+        
+        return true;
+    }
+    
+    /**
+     * 执行跳跃策略
+     */
+    private boolean executeLeapStrategy() {
+        if (leapCooldown > 0 || this.getTarget() == null) {
+            return false;
+        }
+        
+        // 改进：即使不在地面也可以跳跃（空中二段跳）
+        boolean canJump = this.isOnGround() || this.getVelocity().y < 0.1;
+        if (!canJump) {
+            return false;
+        }
+        
+        // 计算跳跃方向（朝向目标）
+        Vec3d dirToTarget = this.getTarget().getPos().subtract(this.getPos()).normalize();
+        
+        // 降低跳跃力度到原来的三分之一
+        double leapStrength = 0.5; // 降低跳跃高度 (原来是1.5)
+        double horizontalStrength = 1.2; // 保持水平推进力
+        
+        // 如果被困时间较长，使用稍强的跳跃
+        if (stuckTicks > 40) {
+            leapStrength = 0.67; // 降低到原来的三分之一 (原来是2.0)
+            horizontalStrength = 1.5;
+        }
+        
+        this.setVelocity(
+            dirToTarget.x * horizontalStrength,
+            leapStrength,
+            dirToTarget.z * horizontalStrength
+        );
+        this.velocityModified = true;
+        this.fallDistance = 0; // 重置摔落伤害
+        
+        // 播放跳跃音效
+        this.getWorld().playSound(null, this.getBlockPos(), 
+            net.minecraft.sound.SoundEvents.ENTITY_HORSE_JUMP, 
+            net.minecraft.sound.SoundCategory.HOSTILE, 2.0F, 0.8F);
+        
+        // 生成跳跃粒子效果
+        ((ServerWorld)this.getWorld()).spawnParticles(
+            ParticleTypes.CLOUD,
+            this.getX(), this.getY(), this.getZ(),
+            20, 0.3, 0.1, 0.3, 0.1
+        );
+        
+        // 缩短冷却时间
+        leapCooldown = 40; // 2秒冷却
+        
+        return true;
+    }
+    
+    /**
+     * 处理障碍物
+     */
+    private void handleObstacle() {
+        if (this.getWorld().isClient() || this.getTarget() == null) {
+            return;
+        }
+        
+        // 更新冷却时间
+        if (teleportCooldown > 0) teleportCooldown--;
+        if (leapCooldown > 0) leapCooldown--;
+        
+        // 检测是否被卡住
+        if (isStuck()) {
+            stuckTicks++;
+            
+            // 降低触发时间到0.5秒，更快响应
+            if (stuckTicks > 10) {
+                // 如果被困超过3秒，直接使用最强力的措施
+                if (stuckTicks > 60) {
+                    // 紧急措施：大范围清除障碍物或强制瞬移
+                    if (emergencyEscape()) {
+                        stuckTicks = 0;
+                        isHandlingObstacle = false;
+                        currentStrategy = null;
+                        strategyAttempts = 0;
+                        return;
+                    }
+                }
+                
+                // 策略失败次数降低到2次就切换
+                if (!isHandlingObstacle || strategyAttempts >= 2) {
+                    // 选择新策略
+                    currentStrategy = selectStrategy();
+                    strategyAttempts = 0;
+                    isHandlingObstacle = true;
+                }
+                
+                // 执行当前策略，每5 tick尝试一次
+                if (stuckTicks % 5 == 0) {
+                    boolean success = false;
+                    switch (currentStrategy) {
+                        case DESTROY:
+                            success = executeDestroyStrategy();
+                            break;
+                        case TELEPORT:
+                            success = executeTeleportStrategy();
+                            break;
+                        case LEAP:
+                            success = executeLeapStrategy();
+                            break;
+                    }
+                    
+                    if (success) {
+                        // 策略执行成功，重置状态
+                        stuckTicks = 0;
+                        isHandlingObstacle = false;
+                        currentStrategy = null;
+                        strategyAttempts = 0;
+                    } else {
+                        // 策略执行失败，增加尝试次数
+                        strategyAttempts++;
+                    }
+                }
+            }
+        } else {
+            // 没有被卡住，但如果之前卡住时间很长，给一个缓冲期
+            if (stuckTicks > 0) {
+                stuckTicks = Math.max(0, stuckTicks - 2); // 缓慢减少
+            }
+            
+            if (stuckTicks == 0) {
+                isHandlingObstacle = false;
+                currentStrategy = null;
+                strategyAttempts = 0;
+            }
+        }
+        
+        // 更新上一次位置
+        lastPosition = this.getPos();
+        
+        // 如果前方有障碍物且不在处理中，更积极地使用跳跃
+        if (!isHandlingObstacle && hasObstacleAhead() && leapCooldown == 0 && random.nextFloat() < 0.5) {
+            executeLeapStrategy();
+        }
+    }
+    
+    /**
+     * 紧急脱困措施 - 当其他策略都失败时使用
+     */
+    private boolean emergencyEscape() {
+        if (this.getTarget() == null) {
+            return false;
+        }
+        
+        // 方案1：大范围清除所有障碍物（7x7范围）
+        boolean clearedAny = false;
+        for (int x = -3; x <= 3; x++) {
+            for (int y = 0; y <= 2; y++) {
+                for (int z = -3; z <= 3; z++) {
+                    BlockPos pos = new BlockPos(
+                        (int)(this.getX() + x),
+                        (int)(this.getY() + y),
+                        (int)(this.getZ() + z)
+                    );
+                    
+                    BlockState state = this.getWorld().getBlockState(pos);
+                    // 清除所有软障碍物
+                    if (state.getBlock() instanceof net.minecraft.block.SweetBerryBushBlock ||
+                        state.getBlock() instanceof net.minecraft.block.CobwebBlock ||
+                        state.getBlock() instanceof net.minecraft.block.VineBlock) {
+                        
+                        this.getWorld().breakBlock(pos, true);
+                        clearedAny = true;
+                    }
+                }
+            }
+        }
+        
+        if (clearedAny) {
+            // 播放爆炸音效
+            this.getWorld().playSound(null, this.getBlockPos(),
+                net.minecraft.sound.SoundEvents.ENTITY_GENERIC_EXPLODE,
+                net.minecraft.sound.SoundCategory.HOSTILE, 2.0F, 0.5F);
+            
+            // 生成爆炸粒子
+            ((ServerWorld)this.getWorld()).spawnParticles(
+                ParticleTypes.EXPLOSION,
+                this.getX(), this.getY() + 1, this.getZ(),
+                10, 1.0, 0.5, 1.0, 0.1
+            );
+            
+            return true;
+        }
+        
+        // 方案2：强制瞬移到目标附近（无视冷却）
+        LivingEntity target = this.getTarget();
+        double angle = random.nextDouble() * 2 * Math.PI;
+        double distance = 5.0 + random.nextDouble() * 3.0;
+        
+        double teleportX = target.getX() + Math.sin(angle) * distance;
+        double teleportZ = target.getZ() + Math.cos(angle) * distance;
+        double teleportY = this.getWorld().getTopY(
+            net.minecraft.world.Heightmap.Type.MOTION_BLOCKING_NO_LEAVES,
+            (int)teleportX, (int)teleportZ
+        );
+        
+        // 强制瞬移
+        this.teleport(teleportX, teleportY, teleportZ);
+        
+        // 播放强力瞬移效果
+        ((ServerWorld)this.getWorld()).spawnParticles(
+            ParticleTypes.PORTAL,
+            this.getX(), this.getY() + 1, this.getZ(),
+            100, 1.0, 1.0, 1.0, 0.5
+        );
+        
+        this.getWorld().playSound(null, this.getBlockPos(),
+            net.minecraft.sound.SoundEvents.ENTITY_ENDERMAN_TELEPORT,
+            net.minecraft.sound.SoundCategory.HOSTILE, 2.0F, 0.5F);
+        
+        // 重置所有冷却
+        teleportCooldown = 0;
+        leapCooldown = 0;
+        
+        return true;
     }
 
 }
